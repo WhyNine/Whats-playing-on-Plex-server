@@ -12,4 +12,4 @@ This web client is designed to display on a 480x320 pixel panel in full screen m
 * If there are no active client devices, starts a slide show of all the photos and videos stored on the PMS.
 
 ## Installation
-The web client uses the Balonku font, which may be downloaded from https://www.fontspace.com/azkarizki/balonku and copied to the fonts folder.
+The web client uses the Balonku font, which may be downloaded from https://www.fontspace.com/azkarizki/balonku and copied to the css/fonts folder.
