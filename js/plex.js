@@ -131,7 +131,7 @@ function display_tabs(xmlDoc, apIndex) {
       player = tracks[i].getElementsByTagName("Player");
       [p, playerState] = return_player_and_state(tracks[i]);
       tab_data[i] = p;
-      playerTitle = player[0].getAttribute("title");           // Chrome/Galaxy A5(2017)
+      playerTitle = player[0].getAttribute("title");           // eg Chrome or Galaxy A5(2017)
       tab.innerHTML = playerState + " on " + playerTitle;
       tab.onclick = change_active_player;
       if (p == activePlayer)
@@ -152,10 +152,10 @@ function display_tabs(xmlDoc, apIndex) {
       font -= 0.5;
       tab.style.fontSize = font + "px";
     }
-//console.log(tab.innerHTML, font); 
   }
 }
 
+// check whether the HTTP headers indicate that an image was returned or not
 function image_returned (headers) {
   var x;
   for(x of headers.entries()) 
@@ -164,8 +164,8 @@ function image_returned (headers) {
   return false; 
 }
 
+// fetch image then add it to the DOM
 function addImage(cl, url) {
-// abort request if this request already made or new request made?
   fetch(url, {method: "GET"})
   .then(function(response) {
     if ((response.ok) && (image_returned(response.headers) == true)) {
@@ -183,6 +183,7 @@ function addImage(cl, url) {
   });
 }
 
+// update the artist or album image with the new one
 function update_image(event) {
   var cl_element = document.getElementById(event.target.cl);
   if (cl_element.childNodes.length == 1) {
@@ -192,6 +193,7 @@ function update_image(event) {
   }
 }
 
+// if there was a problem loading the image, substitute a local image
 function image_error() {
   console.log("image error " + event.target.src);
   event.target.onerror = null;
@@ -199,21 +201,21 @@ function image_error() {
 }
 
 function display_track(track) {
-//  clear_track();
   var trackTitle = track.getAttribute("title");
   document.getElementById("track").innerHTML = trackTitle;
-console.log("Track: " + trackTitle + " <" + getTextWidth(trackTitle, "Calibri") + ">");
+console.log("Track: " + trackTitle);
   var artist = track.getAttribute("grandparentTitle");
   document.getElementById("artist").innerHTML = artist;
-console.log("Artist: " + artist + " <" + getTextWidth(artist, "Calibri") + ">");
+console.log("Artist: " + artist);
   var albumTitle = track.getAttribute("parentTitle");
   albumTitle = albumTitle.replace(/(.*?)\[.*?\](.*)/, '$1$2');
   document.getElementById("album").innerHTML = albumTitle;
-console.log("Album: " + albumTitle + " <" + getTextWidth(albumTitle, "Calibri") + ">");
+console.log("Album: " + albumTitle);
   var anim_dur = longest_string([trackTitle, artist, albumTitle])/15;
   anim_dur = (anim_dur < 7) ? 7 : anim_dur;
-  document.getElementById("album").style.animationDuration = document.getElementById("track").style.animationDuration = document.getElementById("artist").style.animationDuration = "" + anim_dur + "s"; 
+  document.getElementById("album").style.animationDuration = document.getElementById("track").style.animationDuration = document.getElementById("artist").style.animationDuration = anim_dur.toString() + "s"; 
   var albumArtUrl = track.getAttribute("parentThumb");
+  // check if there is album art, else display something anyway
   if (albumArtUrl !== null){
     albumArtUrl = plexUrl + albumArtUrl + "?" + plexParams;
     addImage("album-art", albumArtUrl);
@@ -223,6 +225,7 @@ console.log("Album: " + albumTitle + " <" + getTextWidth(albumTitle, "Calibri") 
     remove_child(document.getElementById("album-art"));
     document.getElementById("album-art").appendChild(img);
   }
+  // check if the artist is Soundtrack (usually found on albums from movies), if so display something sensible
   if (artist === "Soundtrack") {
     var img = document.createElement("img");
     img.setAttribute("src", "images/soundtrack.jpg");
@@ -267,7 +270,7 @@ function return_current_track_id(cTrack) {
   return (cTrack.getAttribute("grandparentKey") + cTrack.getAttribute("parentKey") + cTrack.getAttribute("title"));
 }
 
-// return true if track has changed after compare grandparent key, parent key and title
+// return true if track has changed after comparing grandparent key, parent key and title
 function track_changed(cTrack, storedTrack) {
   return (return_current_track_id(cTrack) !== storedTrack);
 }
@@ -286,6 +289,7 @@ function return_player_and_state(track) {
   }
 }
 
+// look through the list of players and find one that is in the playing state
 function find_new_playing_player(xDoc) {
   var tracks = xDoc.getElementsByTagName("Track");
   var p, s;
@@ -301,6 +305,7 @@ function find_new_playing_player(xDoc) {
   return ("");
 }
 
+// look through the list of players and find the first one, regardless of its state
 function find_new_player(xDoc) {
   var tracks = xDoc.getElementsByTagName("Track");
   var p, s;
@@ -315,6 +320,7 @@ function find_new_player(xDoc) {
   return ("");
 }
 
+// check the status from the PMS and decide whether the player is playing or paused or just disappeared (eg closed), find a new player if necessary, else allow the photo slide show to start
 function process_status(result) {
   var xmlDoc = parser.parseFromString(result,"text/xml");
   var [activePlayerIndex, currentTrack] = current_track(xmlDoc, activePlayer);
@@ -367,6 +373,7 @@ console.log("Nothing to listen to here");
 
 }
 
+// display the track info with/out pause indication else photo slideshow
 function manage_ui() {
   var circles = document.getElementById("circles-div");
   var pause_lines = document.getElementsByClassName("paused")[0];
@@ -395,6 +402,7 @@ function manage_ui() {
   }
 }
 
+// get the status of the PMS
 function get_plex_status() {
   manage_ui();
   if (status_fetch)
@@ -405,6 +413,9 @@ function get_plex_status() {
 }
 
 /*---------------------------------------------------------------------------------*/
+// this section of the file deals with discovering and updating the list of photos, also selects which photo to display
+// note that photos are displayed for 20s, for videos a random 20s portion is played
+
 function add_photo_to_list(current_array, key, w, h, updated, added) {
   var item = {"updated": updated, "added": added, "width": w, "height": h, "url": key, "type": "photo"};
   current_array.push(item);
@@ -420,6 +431,7 @@ function add_directory_to_list(current_array, new_array, updated, added, url) {
   current_array.push(dir);
 }
 
+// step through a directory listing to find other directories plus photos and videos
 function process_dir(txt, current_array) {
   var xmlDoc = parser.parseFromString(txt,"text/xml");
   var dirs = xmlDoc.getElementsByTagName("Directory");
@@ -462,6 +474,7 @@ function find_directory_contents(key, current_array) {
   call_fetch(key, process_dir, current_array);
 }
 
+// extract the section ID of the photo library from the PMS list (currently assumes only one photo library)
 function extract_photo_section_id(txt) {
   var xmlDoc = parser.parseFromString(txt,"text/xml");
   var dirs = xmlDoc.getElementsByTagName("Directory");
@@ -565,7 +578,6 @@ function update_dir(txt, current_array) {
 }
 
 function check_directory_contents(key, current_array) {
-//  console.log("updating directory with key = " + key);
   call_fetch(key, update_dir, current_array);
 }
 
