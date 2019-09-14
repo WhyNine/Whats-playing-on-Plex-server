@@ -10,6 +10,7 @@ This web client is designed to display on a 480x320 pixel panel in full screen m
 * Displays information about the track being streamed by one of the client devices.
 * Scrapes a list of all the photos and videos stored on the PMS, checking for updates at regular intervals.
 * If there are no active client devices, starts a slide show of all the photos and videos stored on the PMS.
+* Photos and videos are selected at random from the scraped list. A photo is displayed for 20s while for videos a random 60s portion is played.
 
 ## Installation
 The web client uses the Balonku font, which may be downloaded from https://www.fontspace.com/azkarizki/balonku and copied to the fonts folder.
