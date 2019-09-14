@@ -2,8 +2,7 @@
 
 // Display: 320 x 480
 
-var plexParams = "X-Plex-Product=Plex%20Web&X-Plex-Version=3.39.5&X-Plex-Client-Identifier=8cpxj5xa6q4pof2q07acxjzs&X-Plex-Platform=Chrome&X-Plex-Platform-Version=73.0&X-Plex-Sync-Version=2&X-Plex-Device=Windows&X-Plex-Device-Name=Chrome&X-Plex-Device-Screen-Resolution=1117x678%2C1920x1080&X-Plex-Token=1d1hkBr6zx1V8jLDHEh2&X-Plex-Provider-Version=1.1";
-var plexUrl = "http://touch-screen:32400";
+var plexParams = "";
 var reqNo = 0;
 var activePlayer = "";
 var activePlayerTrack = "";
@@ -21,6 +20,16 @@ var serialiser = new XMLSerializer();
 
 
 /*---------------------------------------------------------------------------------*/
+function construct_params() {
+  var str;
+  for (key in tokens) {
+    str = key + "=" + encodeURIComponent(tokens[key]);
+    if (plexParams.length > 0)
+    plexParams += "&";
+    plexParams += str;
+  }
+}
+
 function call_fetch(url, func, arg) {
   var fprom = fetch(plexUrl + url + "?" + plexParams, {cache: "no-cache"})
   .then(function(response) {
@@ -721,6 +730,7 @@ console.log(i + " " + photo.url + " " + start);
 
 /*---------------------------------------------------------------------------------*/
 async function start_monitor() {
+  construct_params();
   discover_photos();
   clear_track();
   clear_tabs();
