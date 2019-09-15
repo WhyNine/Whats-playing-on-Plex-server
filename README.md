@@ -13,3 +13,6 @@ This web client is designed to display on a 480x320 pixel panel in full screen m
 
 ## Installation
 The web client uses the Balonku font, which may be downloaded from https://www.fontspace.com/azkarizki/balonku and copied to the css/fonts folder.
+
+## More information
+The following website was very helpful in determining how to access the PMS: https://github.com/Arcanemagus/plex-api/wiki/Plex-Web-API-Overview
