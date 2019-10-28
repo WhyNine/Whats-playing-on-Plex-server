@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <script src="js/custom.js"></script>
+    <script src="js/plex.js"></script>
+    <link rel="stylesheet" href="css/plex.css" />
+    <title>Plex Display for Pi</title>
+  </head>
+  
+  <body onload="start_monitor();" >
+  
+    <div class="grid-container">
+      <div class="grid-title" id="page-title">
+      <img src="images/plex-icon.png" class="image-title" id="img1" />
+      <img src="images/plex-name.png" class="image-title" id="img2" />
+      <p class="title-text" id="title-text">for</p>
+      <span class="image-title-r" id="img3">	  
+      <img src="images/raspberry-logo.png" class="image-title" />
+      <img src="images/plex-icon.png" class="image-title" />
+      </span>
+    </div>
+      <div class="grid-player" id="playing"></div>
+      <div class="grid-album-art" id="album-art"></div>
+      <div class="grid-pad1"></div>
+      <div class="grid-track" id="track-title">
+      <div class="fg"><p class="track p-fg"><span id="track" class="scroll"></span></p></div>
+      <div class="bg"><p class="track-bg p-bg">TRACK</p></div>
+    </div>
+      <div class="grid-album" id="album-title">
+      <div class="fg"><p class="album p-fg"><span id="album" class="scroll"></span></p></div>
+      <div class="bg"><p class="album-bg p-bg">ALBUM</p></div>
+    </div>
+      <div class="grid-artist">
+      <div class="fg"><p class="artist p-fg"><span id="artist" class="scroll"></span></p></div>
+      <div class="bg"><p class="artist-bg p-bg">ARTIST</p></div>
+    </div>
+      <div class="grid-pad2"></div>
+      <div class="grid-artist-art" id="artist-art"></div>
+    </div>
+
+<!-- Circles made visible when playing music -->
+    <div id="circles-div">
+      <div class="circle1 circles"></div>
+      <div class="circle2 circles"></div>
+      <div class="circle3 circles"></div>
+    </div>
+
+<!-- Paused lines -->
+    <div class="paused"><div class="paused-l"></div><div class="paused-r"></div></div>	 
+
+<!-- Photo -->
+    <div class="photo-div" id="photos"><img id="photo-img" /><video id="video-img"  muted /></div>    
+  
+  </body>
+</html>
