@@ -695,6 +695,10 @@ async function display_photo() {
     return;
   }
   hide(document.getElementById("please-wait"));
+  var image = document.getElementById("photo-img");
+  var video = document.getElementById("video-img");
+  image.setAttribute("visibility", "hidden");
+  video.setAttribute("visibility", "hidden");
   num_photos = 0;
   count_photos(photo_list);
   if (num_photos == 0) {
@@ -705,13 +709,11 @@ async function display_photo() {
     count_photos(photo_list);
     if (num_photos == 0)
       console.log("STILL NO PHOTOS TO DISPLAY");
+    image.setAttribute("src", "images/no-photos.png");
+    image.setAttribute("visibility", "visible");
     setTimeout(display_photo, 10000);
     return;
   }
-  var image = document.getElementById("photo-img");
-  image.setAttribute("visibility", "hidden");
-  var video = document.getElementById("video-img");
-  video.setAttribute("visibility", "hidden");
   video.setAttribute("src", "");
   var i = Math.floor(Math.random() * num_photos);
   var photo = find_photo(photo_list, i);
