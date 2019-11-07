@@ -339,6 +339,8 @@ function process_status(result) {
   var not_playing_time = Date.now()/1000 - play_time;
   var ap;
 
+  hide(document.getElementById("please-wait"));
+  
   if ((!player_listed) && (not_playing_time < 6)) {
     music_player = true;
     return;
@@ -692,6 +694,7 @@ async function display_photo() {
     setTimeout(display_photo, 2000);
     return;
   }
+  hide(document.getElementById("please-wait"));
   num_photos = 0;
   count_photos(photo_list);
   if (num_photos == 0) {
