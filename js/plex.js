@@ -30,9 +30,20 @@ function construct_params() {
   }
 }
 
+// add timeout to a promise as per https://stackoverflow.com/a/46946573/11558356
+function timeout(ms, promise) {
+  return new Promise(function(resolve, reject) {
+    setTimeout(function() {
+      reject(new Error("timeout"))
+    }, ms)
+    promise.then(resolve, reject)
+  })
+}
+
+// fetch required resource from url then call function func with the response and additional argument arg
+// add a 10s time-out to all calls
 function call_fetch(url, func, arg) {
-  var fprom = fetch(plexUrl + url + "?" + plexParams, {cache: "no-cache"})
-  .then(function(response) {
+  timeout(10000, fetch(plexUrl + url + "?" + plexParams, {cache: "no-cache"})).then(function(response) {
     if(response.ok) {
       response.text().then(function (txt) {func(txt, arg)}, func, arg);
     } else {
@@ -414,7 +425,7 @@ function get_plex_status() {
 
 /*---------------------------------------------------------------------------------*/
 // this section of the file deals with discovering and updating the list of photos, also selects which photo to display
-// note that photos are displayed for 20s, for videos a random 20s portion is played
+// note that photos are displayed for 20s, for videos a random 60s portion is played
 
 function add_photo_to_list(current_array, key, w, h, updated, added) {
   var item = {"updated": updated, "added": added, "width": w, "height": h, "url": key, "type": "photo"};
@@ -472,23 +483,6 @@ function process_dir(txt, current_array) {
 
 function find_directory_contents(key, current_array) {
   call_fetch(key, process_dir, current_array);
-}
-
-// extract the section ID of the photo library from the PMS list (currently assumes only one photo library)
-function extract_photo_section_id(txt) {
-  var xmlDoc = parser.parseFromString(txt,"text/xml");
-  var dirs = xmlDoc.getElementsByTagName("Directory");
-  if ((dirs !== undefined) && (dirs[0] !== undefined)) 
-    for (var i = 0; i < dirs.length; i++) 
-      if (dirs[i].getAttribute("type") == "photo") {
-        var new_dir = [];
-        var key = dirs[i].getAttribute("key");
-        add_directory_to_list(photo_list, new_dir, dirs[i].getAttribute("updatedAt"), dirs[i].getAttribute("createdAt"), key);
-        find_directory_contents("/library/sections/" + key + "/all", new_dir);
-        break;
-      }
-  if (photo_list.length == 0)
-    console.log("NO PHOTOS DISCOVERED");
 }
 
 function find_previous_dirs(current_array, dir_list) {
@@ -581,6 +575,7 @@ function check_directory_contents(key, current_array) {
   call_fetch(key, update_dir, current_array);
 }
 
+// extract the section ID of the photo library from the PMS list (currently assumes only one photo library) and update the photo list
 function update_photo_section_id(txt) {
   var xmlDoc = parser.parseFromString(txt,"text/xml");
   var dirs = xmlDoc.getElementsByTagName("Directory");
@@ -590,7 +585,8 @@ function update_photo_section_id(txt) {
         var key = dirs[i].getAttribute("key");
         var updated = dirs[i].getAttribute("updatedAt");
         var added = dirs[i].getAttribute("createdAt");
-        if ((updated != photo_list[0].updated) || 
+        if ((photo_list.length == 0) || 
+            (updated != photo_list[0].updated) || 
             (added != photo_list[0].added) ||
             (key != photo_list[0].url)) {
           photo_list = [];
@@ -605,16 +601,19 @@ function update_photo_section_id(txt) {
         }
         break;
       }
-}
+  if (photo_list.length == 0)
+    console.log("NO PHOTOS DISCOVERED");
+  }
 
 function update_photo_list() {
   call_fetch("/library/sections", update_photo_section_id);
 }
 
 function discover_photos() {
-  call_fetch("/library/sections", extract_photo_section_id);
+  call_fetch("/library/sections", update_photo_section_id);
 }
 
+// count the number of photos/videos that have been found
 function count_photos(current_array) {
   current_array.forEach(function(item) {
     var count = num_photos;
@@ -622,11 +621,12 @@ function count_photos(current_array) {
       num_photos++;
     else {
       count_photos(item.list);
-      item.count = num_photos - count;
+      item.count = num_photos - count;        // remember how many photos were found in the directory
     }
   });
 }
 
+// find the photo based on the n'th photo in the list
 function find_photo(current_array, num) {
   for (var i = 0; i < current_array.length; i++) {
     if (current_array[i].type == "dir") {
@@ -647,6 +647,7 @@ function photo_image_error(event) {
   console.log("Display photo error " + event.target.src);
 }
 
+// start playing the video once it has reached the state canplay
 function play_video(event) {
   video = event.target;
   video.oncanplay = null;
@@ -685,6 +686,7 @@ function video_error(event) {
   }
 }
 
+// if no music playing, select a photo/video to display and display it
 async function display_photo() {
   if (music_player) {                                  // if music is playing/active, don't bother updating the photo
     setTimeout(display_photo, 2000);
@@ -711,14 +713,14 @@ async function display_photo() {
   var i = Math.floor(Math.random() * num_photos);
   var photo = find_photo(photo_list, i);
   switch (photo.type) {
-    case "photo":
+    case "photo":           // use the PMS transcoder to scale it to the right size and rotate it if necesary at the same time
       var url = plexUrl + "/photo/:/transcode?width=480&height=320&minSize=1&url=" + encodeURIComponent(photo.url) + "&" + plexParams;
       image.onerror = photo_image_error;
       image.setAttribute("src", url);
       image.setAttribute("visibility", "visible");
       setTimeout(display_photo, 20000);
       break;
-    case "video":
+    case "video":         // use the PMS transcoder to scale it to fit and change the codec to AVC (which Chrome can play)
       var url;
       var duration = photo.duration;
       var start = 0;
@@ -727,7 +729,6 @@ async function display_photo() {
         duration = 60000;
       }
       url = plexUrl + "/video/:/transcode/universal/start.mp4?path=" + encodeURI(photo.url) + "&mediaIndex=0&partIndex=0&protocol=http&offset=" + start + "&fastSeek=1&directPlay=0&directStream=1&videoQuality=50&videoResolution=480x320&maxVideoBitrate=2000&subtitleSize=100&audioBoost=100&" + plexParams;  // %2Flibrary%2Fmetadata%2F23654
-console.log(i + " " + photo.url + " " + start);
       video.setAttribute("src", url);
       video.setAttribute("visibility", "visible");
       video.oncanplay = play_video;
@@ -743,12 +744,12 @@ console.log(i + " " + photo.url + " " + start);
 /*---------------------------------------------------------------------------------*/
 async function start_monitor() {
   construct_params();
-  discover_photos();
+  discover_photos();                              // construct list of available photos
   clear_track();
   clear_tabs();
   await __delay__(10000);                         // wait for things to settle down a bit
   console.log("Starting processes");
-  setInterval(get_plex_status, 2000);
-  display_photo();
-  setInterval(update_photo_list, 3600000);
+  setInterval(get_plex_status, 2000);             // start monitoring for playing audio
+  display_photo();                                // go display photo slideshow (if no audio playing)
+  setInterval(update_photo_list, 3600000);        // periodically check for any new photos
 }
