@@ -18,6 +18,8 @@ var tab_data = [];                             // record of player associated wi
 var parser = new DOMParser();
 var serialiser = new XMLSerializer();
 
+var swipe_start = {};                         // starting position of the swipe gesture
+
 
 /*---------------------------------------------------------------------------------*/
 function construct_params() {
@@ -112,6 +114,31 @@ function checkOverflow(el)
 }
     
 /*---------------------------------------------------------------------------------*/
+function init_swipes() {
+  window.addEventListener('touchstart', record_swipe_start);
+  window.addEventListener('touchend', action_swipe_end);
+}
+
+function record_swipe_start(event) {
+  var touchobj = event.changedTouches[0];
+  swipe_start = {"x": touchobj.clientX, "y": touchobj.clientY};
+  console.log("Touch start: " + touchobj.clientX + ", " + touchobj.clientY);
+}
+
+function action_swipe_end(event) {
+  var touchobj = event.changedTouches[0];
+  console.log("Touch end:" + touchobj.clientX + ", " + touchobj.clientY);
+  var x_diff = touchobj.clientX - swipe_start.x;
+  var y_diff = touchobj.clientY - swipe_start.y;
+  if ((x_diff < 0) && (Math.abs(x_diff) > Math.abs(y_diff)))
+    next_player();
+  else
+    if ((x_diff >= 0) && (Math.abs(x_diff) > Math.abs(y_diff)))
+      previous_player();
+}
+
+
+/*---------------------------------------------------------------------------------*/
 function clear_tabs() {
   remove_all_children(document.getElementById("playing"));
   tab_data = [];
@@ -125,8 +152,33 @@ function clear_track() {
   remove_child(document.getElementById("album-art"));
 }
 
+// called on mouse event to change to new player tab
 function change_active_player(e) {
   activePlayer = tab_data[this.attributes.tab_index.nodeValue];
+}
+
+// called on swipe left to change to next player tab (if one exists)
+function next_player() {
+  var tabs = document.getElementsByClassName("tabs");           // find all the player tabs being displayed
+  var i = 0;
+  while (tabs[i].getAttribute("class") != "active-tab tabs") 
+    i++;
+  if ((i < 2) && (tabs[i+1].getAttribute("class") == "inactive-tab tabs")) {
+    activePlayer = tab_data[tabs[i+1].attributes.tab_index.nodeValue];
+    console.log("Changed to next player");
+  }
+}
+
+// called on swipe right to change to previous player tab (if one exists)
+function previous_player() {
+  var tabs = document.getElementsByClassName("tabs");           // find all the player tabs being displayed
+  var i = 0;
+  while (tabs[i].getAttribute("class") != "active-tab tabs") 
+    i++;
+  if ((i > 0) && (tabs[i-1].getAttribute("class") == "inactive-tab tabs")) {
+    activePlayer = tab_data[tabs[i-1].attributes.tab_index.nodeValue];
+    console.log("Changed to previous player");
+  }
 }
 
 function display_tabs(xmlDoc, apIndex) {
@@ -717,6 +769,7 @@ async function display_photo() {
   video.setAttribute("src", "");
   var i = Math.floor(Math.random() * num_photos);
   var photo = find_photo(photo_list, i);
+  console.log("Displaying photo/video " + photo.url);
   switch (photo.type) {
     case "photo":           // use the PMS transcoder to scale it to the right size and rotate it if necesary at the same time
       var url = plexUrl + "/photo/:/transcode?width=480&height=320&minSize=1&url=" + encodeURIComponent(photo.url) + "&" + plexParams;
@@ -756,5 +809,6 @@ async function start_monitor() {
   console.log("Starting processes");
   setInterval(get_plex_status, 2000);             // start monitoring for playing audio
   display_photo();                                // go display photo slideshow (if no audio playing)
+  init_swipes();
   setInterval(update_photo_list, 3600000);        // periodically check for any new photos
 }
