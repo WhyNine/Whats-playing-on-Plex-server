@@ -8,5 +8,5 @@ var tokens = [["X-Plex-Product", "Plex monitor"],
 	
 var plexUrl = "http://touch-screen:32400";
 	
-var plex_username = "waller_as@yahoo.co.uk";
-var plex_password = "OkLHU8u65Ko3i3HDYXzD";
+var plex_username = "your_plex_username";
+var plex_password = "your_plex_password";
