@@ -22,13 +22,32 @@ var swipe_start = {};                         // starting position of the swipe 
 
 
 /*---------------------------------------------------------------------------------*/
-function construct_params() {
-  var str;
-  for (key in tokens) {
-    str = key + "=" + encodeURIComponent(tokens[key]);
-    if (plexParams.length > 0)
-    plexParams += "&";
-    plexParams += str;
+// get authentication token from the Plex server as per https://gitlab.com/media-scripts/apps/blob/d757a26601b2b33c12884a1ff45cf8db690f2fa1/plex/p2/plex_token.py
+// function is written synchronously as we can't do anything without the token
+async function construct_params() {
+  var encoded = "Basic " + btoa(plex_username + ":" + plex_password);
+  var new_tokens = tokens.slice();
+  new_tokens.push(['Authorization', encoded]);
+  try {
+    var fetch_response = await fetch("https://plex.tv/users/sign_in.json",     // request toekn from Plex server
+        {method: "POST", 
+         cache: "no-cache", 
+         headers: new_tokens});
+    if (!fetch_response.ok)
+      throw new Error("not ok");
+    var text = await fetch_response.text();
+    var params = JSON.parse(text);
+    var authtoken = params.user.authToken;
+    if ((authtoken === undefined) || (authtoken.length == 0))       // if can't get a token, bomb out (this will stop the program going any further)
+      throw new Error("malformed authentication token");
+    tokens.push(["X-Plex-Token", authtoken]);
+    tokens.forEach(function(param) {
+      if (plexParams.length > 0)
+        plexParams += "&";
+      plexParams += param[0] + "=" + encodeURIComponent(param[1]);
+    });
+  } catch {
+    console.log('There has been a problem obtaining the authentication token');
   }
 }
 
@@ -45,7 +64,7 @@ function timeout(ms, promise) {
 // fetch required resource from url then call function func with the response and additional argument arg
 // add a 10s time-out to all calls
 function call_fetch(url, func, arg) {
-  timeout(10000, fetch(plexUrl + url + "?" + plexParams, {cache: "no-cache"})).then(function(response) {
+  timeout(10000, fetch(plexUrl + url, {cache: "no-cache", headers: tokens})).then(function(response) {
     if(response.ok) {
       response.text().then(function (txt) {func(txt, arg)}, func, arg);
     } else {
@@ -229,7 +248,7 @@ function image_returned (headers) {
 
 // fetch image then add it to the DOM
 function addImage(cl, url) {
-  fetch(url, {method: "GET"})
+  fetch(url, {method: "GET", headers: tokens})
   .then(function(response) {
     if ((response.ok) && (image_returned(response.headers) == true)) {
       response.blob().then (function(blob) {
@@ -280,7 +299,7 @@ console.log("Album: " + albumTitle);
   var albumArtUrl = track.getAttribute("parentThumb");
   // check if there is album art, else display something anyway
   if (albumArtUrl !== null){
-    albumArtUrl = plexUrl + albumArtUrl + "?" + plexParams;
+    albumArtUrl = plexUrl + albumArtUrl;
     addImage("album-art", albumArtUrl);
   } else {
     var img = document.createElement("img");
@@ -297,7 +316,7 @@ console.log("Album: " + albumTitle);
   } else {
     var artistArtUrl = track.getAttribute("grandparentThumb");
     if (artistArtUrl !== null){
-      artistArtUrl = plexUrl + artistArtUrl + "?" + plexParams;
+      artistArtUrl = plexUrl + artistArtUrl;
       addImage("artist-art", artistArtUrl);
     } else {
       var img = document.createElement("img");
@@ -801,7 +820,7 @@ async function display_photo() {
 
 /*---------------------------------------------------------------------------------*/
 async function start_monitor() {
-  construct_params();
+  await construct_params();
   discover_photos();                              // construct list of available photos
   clear_track();
   clear_tabs();
