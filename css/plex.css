@@ -23,11 +23,11 @@ body {
   color: red;
   z-index: 10;
   font-size: 50px;
+  text-align: center;
   top: 0;
   left: 0;
   width: 480px;
   height: 320px;
-  text-align: center;
   position: absolute;
 }
 
@@ -100,6 +100,7 @@ span.scroll {
   font-size:37px;
   line-height: 100px;
   transform: scale(1, 2);
+  padding-left: 10px;
 }
 
 .album-bg {
@@ -107,6 +108,7 @@ span.scroll {
   line-height: 52px;
   transform: scale(1.5, 1.9);
   padding-bottom:10px;
+  padding-left: 10px;
 }
 
 .track-bg {
@@ -114,6 +116,7 @@ span.scroll {
   line-height: 76px;
   transform: scale(1.1, 2);
   padding-bottom:8px;
+  padding-left: 10px;
 }
 
 .p-bg {
@@ -134,11 +137,12 @@ span.scroll {
 }
 
 .grid-title {
-  grid-column-start: 1;
-  grid-column-end: 5;
-  grid-row: 1 / 1;
   background-color: var(--main-bg-colour);
+  top: 0;
+  left: 0;
+  width: 480px;
   height: 54px;
+  position: absolute;
 }
 
 .image-title {
@@ -162,9 +166,9 @@ span.scroll {
 }
 
 .grid-player {
-  grid-column-start: 1;
-  grid-column-end: 5;
-  grid-row: 2 / 2;
+  top: 54px;
+  left: 0;
+  position: absolute;
   height: 38px;
   width:480px;
   table-layout:fixed;
@@ -212,8 +216,9 @@ span.scroll {
 }
 
 .grid-album-art {
-  grid-row-start: 3;
-  grid-row-end: 8;
+  top: 120px;
+  left: 0;
+  position: absolute;
   height: 198px;
   width: 198px;
   align-self: end;
@@ -226,27 +231,11 @@ span.scroll {
   width:198px;
 }
 
-.grid-pad1 {
-  grid-column-start: 2;
-  grid-column-end: 2;
-  grid-row-start: 3;
-  grid-row-end: 8;
-  width: 10px;
-}
-
-.grid-pad2 {
-  grid-column-start: 4;
-  grid-column-end: 4;
-  grid-row-start: 7;
-  grid-row-end: 8;
-  width: 10px;
-}
-
 .grid-track {
-  grid-column-start: 3;
-  grid-column-end: 5;
-  grid-row-start: 3;
-  grid-row-end: 4;
+  top: 92px;
+  left: 200px;
+  width: 280px;
+  position: absolute;
   height: 76px;
   color: #d0cccc;
   font-family:"Calibri",sans-serif;
@@ -255,34 +244,31 @@ span.scroll {
 }
 
 .grid-album {
-  grid-column-start: 3;
-  grid-column-end: 5;
-  grid-row-start: 5;
-  grid-row-end: 6;
+  top: 168px;
+  left: 200px;
+  width: 280px;
+  position: absolute;
   height: 52px;
   color: #d0cccc;
   font-family:"Calibri",sans-serif;
-  position: relative;
   display:table;
 }
 
 .grid-artist {
-  grid-column-start: 3;
-  grid-column-end: 3;
-  grid-row-start: 7;
-  grid-row-end: 8;
+  top: 220px;
+  left: 200px;
+  width: 180px;
+  position: absolute;
   height: 100px;
   color: #d0cccc;
   font-family:"Calibri",sans-serif;
-  position: relative;
   display:table;
 }
 
 .grid-artist-art {
-  grid-column-start: 4;
-  grid-column-end: 4;
-  grid-row-start: 5;
-  grid-row-end: 8;
+  top: 220px;
+  left: 379px;
+  position: absolute;
   height: 98px;
   width: 98px;
   align-self: end;
