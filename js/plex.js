@@ -19,6 +19,7 @@ var parser = new DOMParser();
 var serialiser = new XMLSerializer();
 
 var swipe_start = {};                         // starting position of the swipe gesture
+var swipe_functions = {"up": undefined, "down": undefined, "left": undefined, "right": undefined};
 
 
 /*---------------------------------------------------------------------------------*/
@@ -46,8 +47,10 @@ async function construct_params() {
         plexParams += "&";
       plexParams += param[0] + "=" + encodeURIComponent(param[1]);
     });
+    tokens.push(['Accept', 'application/json']);
   } catch {
     console.log('There has been a problem obtaining the authentication token');
+    document.getElementById("please-wait-p").innerText = "Auhentication error";
   }
 }
 
@@ -56,7 +59,7 @@ function timeout(ms, promise) {
   return new Promise(function(resolve, reject) {
     setTimeout(function() {
       reject(new Error("timeout"))
-    }, ms)
+    }, ms);
     promise.then(resolve, reject)
   })
 }
@@ -64,13 +67,13 @@ function timeout(ms, promise) {
 // fetch required resource from url then call function func with the response and additional argument arg
 // add a 10s time-out to all calls
 function call_fetch(url, func, arg) {
-  timeout(10000, fetch(plexUrl + url, {cache: "no-cache", headers: tokens})).then(function(response) {
+  timeout(10000, fetch(plexUrl + url, {cache: "no-cache", headers: tokens}).then(function(response) {
     if(response.ok) {
       response.text().then(function (txt) {func(txt, arg)}, func, arg);
     } else {
       throw new Error('Network response was not "ok".');
     }
-  }, func, arg)
+  }), func, arg)
   .catch(function(error) {
     console.log('There has been a problem fetching ' + url + ': ', error.message);
   });
@@ -136,6 +139,8 @@ function checkOverflow(el)
 function init_swipes() {
   window.addEventListener('touchstart', record_swipe_start);
   window.addEventListener('touchend', action_swipe_end);
+  swipe_functions.left = next_player;
+  swipe_functions.right = previous_player;
 }
 
 function record_swipe_start(event) {
@@ -149,11 +154,20 @@ function action_swipe_end(event) {
   console.log("Touch end:" + touchobj.clientX + ", " + touchobj.clientY);
   var x_diff = touchobj.clientX - swipe_start.x;
   var y_diff = touchobj.clientY - swipe_start.y;
-  if ((x_diff < 0) && (Math.abs(x_diff) > Math.abs(y_diff)))
-    next_player();
-  else
-    if ((x_diff >= 0) && (Math.abs(x_diff) > Math.abs(y_diff)))
-      previous_player();
+  if ((Math.abs(x_diff) < 50) && Math.abs(y_diff) < 50) {
+    return;
+  }
+  if (Math.abs(x_diff) > Math.abs(y_diff)) {                  // left/right
+    if (x_diff < 0) {
+      if (swipe_functions.left != undefined) {swipe_functions.left();}
+    } else
+    if (swipe_functions.right != undefined) {swipe_functions.right();};
+  } else {                                                    // up/down
+    if (y_diff < 0) {
+      if (swipe_functions.down != undefined) {swipe_functions.down();}
+    } else
+    if (swipe_functions.up != undefined) {swipe_functions.up();};
+  }
 }
 
 
@@ -200,9 +214,8 @@ function previous_player() {
   }
 }
 
-function display_tabs(xmlDoc, apIndex) {
+function display_tabs(tracks) {
   clear_tabs();
-  var tracks = xmlDoc.getElementsByTagName("Track");
   var player, playerState, playerTitle, p;
   var tabs_div = document.getElementById("playing"); 
   for (var i = 0; i < ((tracks.length > 3) ? tracks.length : 3); i++) {
@@ -210,10 +223,10 @@ function display_tabs(xmlDoc, apIndex) {
     tab.setAttribute("id", "tab" + (i+1));
     tab.setAttribute("tab_index", i);
     if (i < tracks.length) {
-      player = tracks[i].getElementsByTagName("Player");
+      player = tracks[i].Player;
       [p, playerState] = return_player_and_state(tracks[i]);
       tab_data[i] = p;
-      playerTitle = player[0].getAttribute("title");           // eg Chrome or Galaxy A5(2017)
+      playerTitle = player.title;           // eg Chrome or Galaxy A5(2017)
       tab.innerHTML = playerState + " on " + playerTitle;
       tab.onclick = change_active_player;
       if (p == activePlayer)
@@ -283,20 +296,20 @@ function image_error() {
 }
 
 function display_track(track) {
-  var trackTitle = track.getAttribute("title");
+  var trackTitle = track.title;
   document.getElementById("track").innerHTML = trackTitle;
 console.log("Track: " + trackTitle);
-  var artist = track.getAttribute("grandparentTitle");
+  var artist = track.grandparentTitle;
   document.getElementById("artist").innerHTML = artist;
 console.log("Artist: " + artist);
-  var albumTitle = track.getAttribute("parentTitle");
+  var albumTitle = track.parentTitle;
   albumTitle = albumTitle.replace(/(.*?)\[.*?\](.*)/, '$1$2');
   document.getElementById("album").innerHTML = albumTitle;
 console.log("Album: " + albumTitle);
   var anim_dur = longest_string([trackTitle, artist, albumTitle])/15;
   anim_dur = (anim_dur < 7) ? 7 : anim_dur;
   document.getElementById("album").style.animationDuration = document.getElementById("track").style.animationDuration = document.getElementById("artist").style.animationDuration = anim_dur.toString() + "s"; 
-  var albumArtUrl = track.getAttribute("parentThumb");
+  var albumArtUrl = track.parentThumb;
   // check if there is album art, else display something anyway
   if (albumArtUrl !== null){
     albumArtUrl = plexUrl + albumArtUrl;
@@ -314,7 +327,7 @@ console.log("Album: " + albumTitle);
     remove_child(document.getElementById("artist-art"));
     document.getElementById("artist-art").appendChild(img);
   } else {
-    var artistArtUrl = track.getAttribute("grandparentThumb");
+    var artistArtUrl = track.grandparentThumb;
     if (artistArtUrl !== null){
       artistArtUrl = plexUrl + artistArtUrl;
       addImage("artist-art", artistArtUrl);
@@ -328,9 +341,8 @@ console.log("Album: " + albumTitle);
 }
 
 // Return [track index of active player, xml doc of relevant track]
-function current_track(xDoc, player) {
+function current_track(tracks, player) {
   var p, playerState;
-  var tracks = xDoc.getElementsByTagName("Track");
   try {
     for (var i = 0; i < tracks.length; i++) {
       [p, playerState] = return_player_and_state(tracks[i]);
@@ -341,7 +353,7 @@ function current_track(xDoc, player) {
       }    
     }    
   } catch {                                                                 // get here if no tracks or no session
-    console.log("Error in 'current_track', xDoc = " + serialiser.serializeToString(xDoc));
+    console.log("Error in 'current_track', tracks = " + JSON.stringify(tracks));
   }
   playing = false;
   paused = false;
@@ -349,7 +361,7 @@ function current_track(xDoc, player) {
 }
 
 function return_current_track_id(cTrack) {
-  return (cTrack.getAttribute("grandparentKey") + cTrack.getAttribute("parentKey") + cTrack.getAttribute("title"));
+  return (cTrack.grandparentKey + cTrack.parentKey + cTrack.title);
 }
 
 // return true if track has changed after comparing grandparent key, parent key and title
@@ -359,12 +371,12 @@ function track_changed(cTrack, storedTrack) {
 
 function return_player_and_state(track) {
   try {
-    var p = track.getElementsByTagName("Player");
-    var s = track.getElementsByTagName("Session");
-    return ([p[0].getAttribute("machineIdentifier") + ":" + s[0].getAttribute("id"), p[0].getAttribute("state")]);
+    var p = track.Player;
+    var s = track.Session;
+    return ([p.machineIdentifier + ":" + s.id, p.state]);
   } catch {
     try {
-      return (["", p[0].getAttribute("state")]);
+      return (["", p.state]);
     } catch {  
       return(["", ""]);
     }  
@@ -372,8 +384,7 @@ function return_player_and_state(track) {
 }
 
 // look through the list of players and find one that is in the playing state
-function find_new_playing_player(xDoc) {
-  var tracks = xDoc.getElementsByTagName("Track");
+function find_new_playing_player(tracks) {
   var p, s;
   try {
     for (var i = 0; i < tracks.length; i++) {                    // find first player that is playing
@@ -382,14 +393,13 @@ function find_new_playing_player(xDoc) {
         return (p);
     }
   } catch {                                                         // get here if no tracks or no session
-    console.log("Error in 'select_new_player', xDoc = " + serialiser.serializeToString(xDoc));
+    console.log("Error in 'select_new_player', tracks = " + JSON.stringify(tracks));
   }
   return ("");
 }
 
 // look through the list of players and find the first one, regardless of its state
-function find_new_player(xDoc) {
-  var tracks = xDoc.getElementsByTagName("Track");
+function find_new_player(tracks) {
   var p, s;
   try {
     for (var i = 0; i < tracks.length; i++) {                    // find first player
@@ -397,15 +407,18 @@ function find_new_player(xDoc) {
       return (p);
     }
   } catch {                                                         // get here if no tracks or no session
-    console.log("Error in 'select_new_player', xDoc = " + serialiser.serializeToString(xDoc));
+    console.log("Error in 'select_new_player', tracks = " + JSON.stringify(tracks));
   }
   return ("");
 }
 
 // check the status from the PMS and decide whether the player is playing or paused or just disappeared (eg closed), find a new player if necessary, else allow the photo slide show to start
 function process_status(result) {
-  var xmlDoc = parser.parseFromString(result,"text/xml");
-  var [activePlayerIndex, currentTrack] = current_track(xmlDoc, activePlayer);
+  var status = JSON.parse(result);
+  var tracks = [];
+  if (status.MediaContainer.Metadata !== undefined) 
+    tracks = status.MediaContainer.Metadata;
+  var [activePlayerIndex, currentTrack] = current_track(tracks, activePlayer);
   var player_listed = (activePlayerIndex >= 0);
   var not_playing_time = Date.now()/1000 - play_time;
   var ap;
@@ -422,7 +435,7 @@ function process_status(result) {
       ((player_listed) && (playing))) {
 console.log("Staying with current player");
     music_player = true;
-    display_tabs(xmlDoc, activePlayerIndex);
+    display_tabs(tracks);
     if (track_changed(currentTrack, activePlayerTrack)) {
       activePlayerTrack = return_current_track_id(currentTrack);
       display_track(currentTrack);
@@ -431,21 +444,21 @@ console.log("Staying with current player");
   }
 
 // Change to a new player if the current player is not listed anymore (for more than 10s) or it hasn't been playing for 60s and there's another player that is    
-  if (((!player_listed) && (not_playing_time >= 10) && ((ap = find_new_playing_player(xmlDoc)) != "")) || 
-      ((player_listed) && (!playing) && (not_playing_time >= 60) && ((ap = find_new_playing_player(xmlDoc)) != ""))) {
+  if (((!player_listed) && (not_playing_time >= 10) && ((ap = find_new_playing_player(tracks)) != "")) || 
+      ((player_listed) && (!playing) && (not_playing_time >= 60) && ((ap = find_new_playing_player(tracks)) != ""))) {
 console.log("Changing to a new player");
     music_player = true;
     activePlayer = ap;
-    [activePlayerIndex, currentTrack] = current_track(xmlDoc, activePlayer);
-    display_tabs(xmlDoc, activePlayerIndex);
+    [activePlayerIndex, currentTrack] = current_track(tracks, activePlayer);
+    display_tabs(tracks);
     activePlayerTrack = return_current_track_id(currentTrack);
     display_track(currentTrack);
     return;
   }
 
 // Switch to the photos if there are not players listed anymore (for more than 10s) or the current player hasn't been playing for at least 60s  
-  if (((!player_listed) && (not_playing_time >= 10) && ((ap = find_new_player(xmlDoc)) == "")) ||
-      ((player_listed) && (!playing) && (not_playing_time >= 60) && ((ap = find_new_playing_player(xmlDoc)) == ""))) {
+  if (((!player_listed) && (not_playing_time >= 10) && ((ap = find_new_player(tracks)) == "")) ||
+      ((player_listed) && (!playing) && (not_playing_time >= 60) && ((ap = find_new_playing_player(tracks)) == ""))) {
 console.log("Nothing to listen to here");
     music_player = false;
     activePlayer = "";
@@ -517,42 +530,43 @@ function add_directory_to_list(current_array, new_array, updated, added, url) {
 
 // step through a directory listing to find other directories plus photos and videos
 function process_dir(txt, current_array) {
-  var xmlDoc = parser.parseFromString(txt,"text/xml");
-  var dirs = xmlDoc.getElementsByTagName("Directory");
-  if (dirs !== undefined) 
-    for (var i = 0; i < dirs.length; i++) 
-      if (dirs[i].getAttribute("type") == "photo") {
+  var result = JSON.parse(txt);
+  var contents = result.MediaContainer.Metadata;
+  if (contents !== undefined) {
+    for (var i = 0; i < contents.length; i++) {
+      var key = contents[i].key;
+      if (key.endsWith("/children")) {                 // check if its a directory
         var new_dir = [];
-        var key = dirs[i].getAttribute("key");
-        add_directory_to_list(current_array, new_dir, dirs[i].getAttribute("updatedAt"), dirs[i].getAttribute("addedAt"), key);
+        add_directory_to_list(current_array, new_dir, contents[i].updatedAt, contents[i].addedAt, key);
         find_directory_contents(key, new_dir);
       }
-  var photos = xmlDoc.getElementsByTagName("Photo");
-  if (photos !== undefined) 
-    for (var i = 0; i < photos.length; i++) {
-      var media = photos[i].getElementsByTagName("Media");
-      if (media !== undefined) {
-        var part = media[0].getElementsByTagName("Part");
-        if (part !== undefined) {
-          var key = part[0].getAttribute("key");
-          var width = media[0].getAttribute("width");
-          var height = media[0].getAttribute("height"); 
-          var updated = photos[i].getAttribute("updatedAt");
-          var added = photos[i].getAttribute("addedAt");
-          add_photo_to_list(current_array, key, width, height, updated, added);
+      else
+        switch (contents[i].type) {
+          case "photo": 
+            var media = contents[i].Media;
+            if (media !== undefined) {
+              var part = media[0].Part;
+              if (part !== undefined) {
+                key = part[0].key;
+                var width = media[0].width;
+                var height = media[0].height; 
+                var updated = contents[i].updatedAt;
+                var added = contents[i].addedAt;
+                add_photo_to_list(current_array, key, width, height, updated, added);
+              }
+            }
+            break;
+          case "clip":
+            var updated = contents[i].updatedAt;
+            var added = contents[i].addedAt;
+            var duration = contents[i].duration;
+            add_video_to_list(current_array, key, duration, updated, added);
+            break;
+          default:
         }
-      }
-    } 
-  var videos = xmlDoc.getElementsByTagName("Video");
-  if (videos !== undefined) 
-    for (var i = 0; i < videos.length; i++) {
-      var key = videos[i].getAttribute("key");
-      var updated = videos[i].getAttribute("updatedAt");
-      var added = videos[i].getAttribute("addedAt");
-      var duration = videos[i].getAttribute("duration");
-      add_video_to_list(current_array, key, duration, updated, added);
     } 
   }
+}
 
 function find_directory_contents(key, current_array) {
   call_fetch(key, process_dir, current_array);
@@ -584,17 +598,17 @@ function find_matching_key(current_array, dir_list, key) {
 }
 
 function update_dir(txt, current_array) {
-  var xmlDoc = parser.parseFromString(txt,"text/xml");
-  var dirs = xmlDoc.getElementsByTagName("Directory");
+  var result = JSON.parse(txt);
+  var dirs = result.MediaContainer.Directory;
   var previous_dirs = [];
   var updated, added, key, match;
   find_previous_dirs(current_array, previous_dirs);
   if (dirs !== undefined) 
     for (var i = 0; i < dirs.length; i++) 
-      if (dirs[i].getAttribute("type") == "photo") {
-        updated = dirs[i].getAttribute("updatedAt");
-        added = dirs[i].getAttribute("addedAt");
-        key = dirs[i].getAttribute("key");
+      if (dirs[i].type == "photo") {
+        updated = dirs[i].updatedAt;
+        added = dirs[i].addedAt;
+        key = dirs[i].key;
         match = find_matching_key(current_array, previous_dirs, key);
         if (match !== undefined) {
             current_array[match].updated = updated;
@@ -609,7 +623,7 @@ function update_dir(txt, current_array) {
   previous_dirs.forEach(function(item) {
     this.splice(item, 1);                                     // delete all of the other folders not matched above
   }, current_array);
-  var photos = xmlDoc.getElementsByTagName("Photo");
+  var photos = result.MediaContainer.Photo;
   var previous_photos = [];
   var width, height, media, part;
   find_previous_photos(current_array, previous_photos);
@@ -650,14 +664,14 @@ function check_directory_contents(key, current_array) {
 
 // extract the section ID of the photo library from the PMS list (currently assumes only one photo library) and update the photo list
 function update_photo_section_id(txt) {
-  var xmlDoc = parser.parseFromString(txt,"text/xml");
-  var dirs = xmlDoc.getElementsByTagName("Directory");
+  var result = JSON.parse(txt);
+  var dirs = result.MediaContainer.Directory;
   if ((dirs !== undefined) && (dirs[0] !== undefined)) 
     for (var i = 0; i < dirs.length; i++) 
-      if (dirs[i].getAttribute("type") == "photo") {
-        var key = dirs[i].getAttribute("key");
-        var updated = dirs[i].getAttribute("updatedAt");
-        var added = dirs[i].getAttribute("createdAt");
+      if (dirs[i].type == "photo") {
+        var key = dirs[i].key;
+        var updated = dirs[i].updatedAt;
+        var added = dirs[i].createdAt;
         if ((photo_list.length == 0) || 
             (updated != photo_list[0].updated) || 
             (added != photo_list[0].added) ||
@@ -761,11 +775,11 @@ function video_error(event) {
 
 // if no music playing, select a photo/video to display and display it
 async function display_photo() {
+  hide(document.getElementById("please-wait"));
   if (music_player) {                                  // if music is playing/active, don't bother updating the photo
     setTimeout(display_photo, 2000);
     return;
   }
-  hide(document.getElementById("please-wait"));
   var image = document.getElementById("photo-img");
   var video = document.getElementById("video-img");
   image.setAttribute("visibility", "hidden");
