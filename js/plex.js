@@ -2,9 +2,11 @@
 
 // Display: 320 x 480
 
+'use strict';
+
 var plexParams = "";
 var reqNo = 0;
-var activePlayer = "";
+var activePlayer;
 var activePlayerTrack = "";
 var photo_list = [];                           // array with all the photos on Plex
 var num_photos;
@@ -15,11 +17,11 @@ var music_player = false;                      // true if any music player is ac
 var play_time = Date.now() / 1000;
 var tab_data = [];                             // record of player associated with tabs
 
-var parser = new DOMParser();
-var serialiser = new XMLSerializer();
-
 var swipe_start = {};                         // starting position of the swipe gesture
 var swipe_functions = {"up": undefined, "down": undefined, "left": undefined, "right": undefined};
+
+var worker;
+var worker_ready = false;
 
 
 /*---------------------------------------------------------------------------------*/
@@ -48,6 +50,12 @@ async function construct_params() {
       plexParams += param[0] + "=" + encodeURIComponent(param[1]);
     });
     tokens.push(['Accept', 'application/json']);
+    if (worker !== undefined) {
+      while (!worker_ready)
+        await __delay__(500);
+      worker.postMessage({"type": "params", "data": {"params": plexParams, "tokens": tokens}});
+      console.log("Sent params to worker");
+    }
   } catch {
     console.log('There has been a problem obtaining the authentication token');
     document.getElementById("please-wait-p").innerText = "Auhentication error";
@@ -136,6 +144,16 @@ function checkOverflow(el)
 }
     
 /*---------------------------------------------------------------------------------*/
+
+function start_worker() {
+  if (typeof(Worker) !== "undefined") {
+    worker = new Worker("js/plex_worker.js");
+    worker.onmessage = receive_message;
+  } else {
+    console.log("No Web Worker support!!");
+  }
+}
+
 function init_swipes() {
   window.addEventListener('touchstart', record_swipe_start);
   window.addEventListener('touchend', action_swipe_end);
@@ -418,6 +436,9 @@ function process_status(result) {
   var tracks = [];
   if (status.MediaContainer.Metadata !== undefined) 
     tracks = status.MediaContainer.Metadata;
+  if (activePlayer === undefined) {                   // this must be app starting
+    activePlayer = find_new_player(tracks);
+  }
   var [activePlayerIndex, currentTrack] = current_track(tracks, activePlayer);
   var player_listed = (activePlayerIndex >= 0);
   var not_playing_time = Date.now()/1000 - play_time;
@@ -773,9 +794,27 @@ function video_error(event) {
   }
 }
 
-// if no music playing, select a photo/video to display and display it
-async function display_photo() {
+// request photo from worker
+function display_photo() {
   hide(document.getElementById("please-wait"));
+  worker.postMessage({"type": "photo-request"});
+}
+
+// if no music playing, display a photo/video
+function receive_message(event) {
+  console.log("Message received from worker: " + event.data.type);
+  switch (event.data.type) {
+    case "ready":
+      worker_ready = true;
+      break;
+    case "photo":
+      receive_photo(event.data.data);
+      break;
+    default:
+  }
+}
+
+function receive_photo(photo) {
   if (music_player) {                                  // if music is playing/active, don't bother updating the photo
     setTimeout(display_photo, 2000);
     return;
@@ -784,24 +823,14 @@ async function display_photo() {
   var video = document.getElementById("video-img");
   image.setAttribute("visibility", "hidden");
   video.setAttribute("visibility", "hidden");
-  num_photos = 0;
-  count_photos(photo_list);
-  if (num_photos == 0) {
-    console.log("Hmm, no photos found ... let's try again");
-    photo_list = [];
-    discover_photos();
-    await __delay__(10000);
-    count_photos(photo_list);
-    if (num_photos == 0)
-      console.log("STILL NO PHOTOS TO DISPLAY");
+  if (photo == undefined) {
+    console.log("Hmm, no photos found ... ");
     image.setAttribute("src", "images/no-photos.png");
     image.setAttribute("visibility", "visible");
     setTimeout(display_photo, 10000);
     return;
   }
   video.setAttribute("src", "");
-  var i = Math.floor(Math.random() * num_photos);
-  var photo = find_photo(photo_list, i);
   console.log("Displaying photo/video " + photo.url);
   switch (photo.type) {
     case "photo":           // use the PMS transcoder to scale it to the right size and rotate it if necesary at the same time
@@ -832,16 +861,14 @@ async function display_photo() {
   }
 }
 
+
 /*---------------------------------------------------------------------------------*/
 async function start_monitor() {
+  start_worker();
   await construct_params();
-  discover_photos();                              // construct list of available photos
   clear_track();
   clear_tabs();
-  await __delay__(10000);                         // wait for things to settle down a bit
-  console.log("Starting processes");
   setInterval(get_plex_status, 2000);             // start monitoring for playing audio
   display_photo();                                // go display photo slideshow (if no audio playing)
   init_swipes();
-  setInterval(update_photo_list, 3600000);        // periodically check for any new photos
 }
