@@ -13,7 +13,8 @@ This web client is designed to display on a 480x320 pixel panel in full screen m
 * Photos and videos are selected at random from the scraped list. A photo is displayed for 20s while for videos a random 60s portion is played.
 
 ## Installation
-The web client uses the Balonku font, which may be downloaded from https://www.fontspace.com/azkarizki/balonku and copied to the fonts folder.
+The web client uses the Balonku font, which may be downloaded from https://www.fontspace.com/azkarizki/balonku and copied to the fonts folder. The file js/custom-example.js has to be renamed to js/custom.js and customised with the URL of the PMS and the appropriate user credentials.
+Note that the web client uses a web worker to scrape the list of photos. This means that the client cannot be loaded locally as a file and must be accessed via a web server.
 
 ## More information
 The following website was very helpful in determining how to access the PMS: https://github.com/Arcanemagus/plex-api/wiki/Plex-Web-API-Overview. Working out the parameters for the video transcoding were a bit hit & miss but seem to work ok. 
