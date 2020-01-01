@@ -58,7 +58,12 @@ function add_directory_to_list(current_array, new_array, updated, added, url) {
 
 // step through a directory listing to find other directories plus photos and videos
 function process_dir(txt, current_array) {
-  var result = JSON.parse(txt);
+  var result;
+  try {
+    result = JSON.parse(txt);
+  } catch {
+    console.log("----- Worker: error parsing JSON " + txt);
+  }
   var contents = result.MediaContainer.Metadata;
   if (contents !== undefined) {
     for (var i = 0; i < contents.length; i++) {
@@ -91,8 +96,11 @@ function process_dir(txt, current_array) {
             add_video_to_list(current_array, key, duration, updated, added);
             break;
           default:
+            console.log("------ Worker found unknown content type " + contents[i].type);
         }
     } 
+  } else {
+    console.log("----- Worker: no Metadata found in " + txt);
   }
 }
 
@@ -116,7 +124,7 @@ function find_previous_photos(current_array, photo_list) {
 
 function find_matching_key(current_array, dir_list, key) {
   var index;
-  for (i = 0; i < dir_list.length; i++) {
+  for (var i = 0; i < dir_list.length; i++) {
     index = dir_list[i];
     if (current_array[index].url == key) {
       dir_list.splice(i, 1);
@@ -126,64 +134,94 @@ function find_matching_key(current_array, dir_list, key) {
 }
 
 function update_dir(txt, current_array) {
-  var result = JSON.parse(txt);
-  var dirs = result.MediaContainer.Directory;
+  var result;
+  try {
+    result = JSON.parse(txt);
+  } catch {
+    console.log("----- Worker: error parsing JSON " + txt);
+  }
+  var contents = result.MediaContainer.Metadata;
   var previous_dirs = [];
+  var previous_photos = [];
   var updated, added, key, match;
   find_previous_dirs(current_array, previous_dirs);
-  if (dirs !== undefined) 
-    for (var i = 0; i < dirs.length; i++) 
-      if (dirs[i].type == "photo") {
-        updated = dirs[i].updatedAt;
-        added = dirs[i].addedAt;
-        key = dirs[i].key;
+  if (contents !== undefined) {
+    for (var i = 0; i < contents.length; i++) {
+      key = contents[i].key;
+      if (key.endsWith("/children")) {
+        updated = contents[i].updatedAt;
+        added = contents[i].addedAt;
         match = find_matching_key(current_array, previous_dirs, key);
         if (match !== undefined) {
             current_array[match].updated = updated;
             current_array[match].added = added;
-            call_fetch(key, update_dir, current_array[match].list);
+            check_directory_contents(key, current_array[match].list);
         } else {
           var new_dir = [];
           add_directory_to_list(current_array, new_dir, updated, added, key);
           find_directory_contents(key, new_dir);
         }
       }
+    }
+  } else {
+    console.log("----- Worker: no Metadata found in " + txt);
+  }
   previous_dirs.forEach(function(item) {
-    this.splice(item, 1);                                     // delete all of the other folders not matched above
+      this.splice(item, 1);                                     // delete all of the other folders not matched above
   }, current_array);
-  var photos = result.MediaContainer.Photo;
-  var previous_photos = [];
-  var width, height, media, part;
   find_previous_photos(current_array, previous_photos);
-  if (photos !== undefined) 
-    for (var i = 0; i < photos.length; i++) {
-      media = photos[i].getElementsByTagName("Media");
-      if (media !== undefined) {
-        part = media[0].getElementsByTagName("Part");
-        if (part !== undefined) {
-          key = part[0].getAttribute("key");
-          width = media[0].getAttribute("width");
-          height = media[0].getAttribute("height"); 
-          updated = photos[i].getAttribute("updatedAt");
-          added = photos[i].getAttribute("addedAt");
-          match = find_matching_key(current_array, previous_photos, key);
-          if (match !== undefined) {
-            if ((current_array[match].updated != updated) ||
-                (current_array[match].added != added)) {
-              current_array[match].updated = updated;
-              current_array[match].added = added;
-              current_array[match].width = width;
-              current_array[match].height = height;
-              current_array[match].url = key;
+  if (contents !== undefined) {
+    var width, height, media, part, duration;
+    for (var i = 0; i < contents.length; i++) {
+      key = contents[i].key;
+      if (!key.endsWith("/children")) {
+        updated = contents[i].updatedAt;
+        added = contents[i].addedAt;
+        switch (contents[i].type) {
+          case "photo":
+            media = contents[i].Media;
+            if (media !== undefined) {
+              part = media[0].Part;
+              if (part !== undefined) {
+                key = part[0].key;
+                width = media[0].width;
+                height = media[0].height; 
+                match = find_matching_key(current_array, previous_photos, key);
+                if (match !== undefined) {
+                  if ((current_array[match].updated != updated) ||
+                      (current_array[match].added != added)) {
+                    current_array[match].updated = updated;
+                    current_array[match].added = added;
+                    current_array[match].width = width;
+                    current_array[match].height = height;
+                    current_array[match].url = key;
+                  }
+                } else
+                  add_photo_to_list(current_array, key, width, height, updated, added);
+              }
             }
-          } else
-            add_photo_to_list(current_array, key, width, height, updated, added);
-        }
+            break;
+          case "clip":
+            duration = contents[i].duration;
+            match = find_matching_key(current_array, previous_photos, key);
+            if (match !== undefined) {
+              if ((current_array[match].updated != updated) ||
+                  (current_array[match].added != added)) {
+                current_array[match].updated = updated;
+                current_array[match].added = added;
+                current_array[match].duration = duration;
+              }
+            } else 
+              add_video_to_list(current_array, key, duration, updated, added);
+            break;
+          default:
+          }
       }
     } 
-    previous_photos.forEach(function(item) {
+  }
+  previous_photos.forEach(function(item) {
       this.splice(item, 1);                                     // delete all of the other photos not matched above
-    }, current_array);
+  }, current_array);
 }
 
 function check_directory_contents(key, current_array) {
@@ -192,9 +230,14 @@ function check_directory_contents(key, current_array) {
 
 // extract the section ID of the photo library from the PMS list (currently assumes only one photo library) and update the photo list
 function update_photo_section_id(txt) {
-  var result = JSON.parse(txt);
+  var result;
+  try {
+    result = JSON.parse(txt);
+  } catch {
+    console.log("----- Worker: error parsing JSON " + txt);
+  }
   var dirs = result.MediaContainer.Directory;
-  if ((dirs !== undefined) && (dirs[0] !== undefined)) 
+  if ((dirs !== undefined) && (dirs[0] !== undefined)) {
     for (var i = 0; i < dirs.length; i++) 
       if (dirs[i].type == "photo") {
         var key = dirs[i].key;
@@ -216,11 +259,15 @@ function update_photo_section_id(txt) {
         }
         break;
       }
+  } else {
+    console.log("----- Worker: no Directory found in " + txt);
+  }
   if (photo_list.length == 0)
     console.log("NO PHOTOS DISCOVERED");
   }
 
 function update_photo_list() {
+  console.log("Worker: updating the photo list ****************************");
   call_fetch("/library/sections", update_photo_section_id);
 }
 
