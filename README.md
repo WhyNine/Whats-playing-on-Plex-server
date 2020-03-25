@@ -2,7 +2,7 @@
 Web client for a Plex Media Server (PMS) which displays currently playing music track, else displays a slide show. It can also play some radio stations.
 
 ## Summary
-This web client is designed to display on a 480x320 pixel panel in full screen mode and is compatible with both Chrome and Midori (it was initially written for a Raspberry Pi with an attached touch screen panel and Chrome running in kiosk mode). It monitors the activity on a local Plex Media Server. When music is being played, it shows details about the track and what client device is playing it. If no music is being played, the web client starts a slide show of the photos and videos stored on the PMS.
+This web client is designed to display on a 480x320 pixel panel in full screen mode and is compatible with both Chrome and Midori (it was initially written for a Raspberry Pi with an attached touch screen panel and Chrome running in kiosk mode). It monitors the activity on a local Plex Media Server. When music is being played, it shows details about the track and what client device is playing it. If no music is being played, the web client starts a slide show of the photos and videos stored on the PMS. Alternatively, the user can play from a selection of radio stations.
 
 ## Features
 * Monitors the Plex Media Server for any music being streamed by client devices.
