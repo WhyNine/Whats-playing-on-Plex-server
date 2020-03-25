@@ -13,15 +13,25 @@ var num_photos;
 var status_fetch = false;
 var playing = false;                           // true when music actually playing, false if paused etc
 var paused = false;                            // true when music paused
-var music_player = false;                      // true if any music player is active, false when photos are displayed
+var screen = "wait";                           // can be either "wait", "photos", "music" or "stations"
 var play_time = Date.now() / 1000;
 var tab_data = [];                             // record of player associated with tabs
 
-var swipe_start = {};                         // starting position of the swipe gesture
+var swipe_start = {};                          // starting position of the swipe gesture
 var swipe_functions = {"up": undefined, "down": undefined, "left": undefined, "right": undefined};
 
 var worker;
 var worker_ready = false;
+
+var radio_stations = [
+  { file: "iframe-bbc-4.html", logo_type: "jpg", url: "bbc-radio-4" },
+  { file: "iframe-bbc-2.html", logo_type: "jpg", url: "bbc-radio-2" },
+  { file: "iframe-breeze.html", logo_type: "jpg", url: "the-breeze" },
+  { file: "iframe-absolute-80s.html", logo_type: "png", url: "absolute-80s" },
+  { file: "iframe-gold.html", logo_type: "jpg", url: "gold" },
+  { file: "iframe-magic.html", logo_type: "jpg", url: "magic-radio" }
+];
+var radio = false;                          // true when displaying the radio page
 
 
 /*---------------------------------------------------------------------------------*/
@@ -150,7 +160,6 @@ function checkOverflow(el)
 }
     
 /*---------------------------------------------------------------------------------*/
-
 function start_worker() {
   if (typeof(Worker) !== "undefined") {
     worker = new Worker("js/plex_worker.js");
@@ -163,8 +172,9 @@ function start_worker() {
 function init_swipes() {
   window.addEventListener('touchstart', record_swipe_start);
   window.addEventListener('touchend', action_swipe_end);
-  swipe_functions.left = next_player;
-  swipe_functions.right = previous_player;
+  swipe_functions.left = function() {next_player()};
+  swipe_functions.right = function() {previous_player()};
+  swipe_functions.up = function() {show_radio()};
 }
 
 function record_swipe_start(event) {
@@ -188,14 +198,84 @@ function action_swipe_end(event) {
     if (swipe_functions.right != undefined) {swipe_functions.right();};
   } else {                                                    // up/down
     if (y_diff < 0) {
-      if (swipe_functions.down != undefined) {swipe_functions.down();}
+      if (swipe_functions.up != undefined) {swipe_functions.up();}
     } else
-    if (swipe_functions.up != undefined) {swipe_functions.up();};
+    if (swipe_functions.down != undefined) {swipe_functions.down();};
   }
 }
 
 
 /*---------------------------------------------------------------------------------*/
+function show_radio() {
+  screen = "radio";
+  swipe_functions.left = undefined;
+  swipe_functions.right = undefined;
+  swipe_functions.up = undefined;
+  swipe_functions.down = function() {hide_radio()};
+  manage_ui();
+}
+
+function hide_radio() {
+  screen = "photos";
+  remove_playing_station();
+  manage_ui();
+  swipe_functions.left = function() {next_player()};
+  swipe_functions.right = function() {previous_player()};
+  swipe_functions.up = function() {show_radio()};
+  swipe_functions.down = undefined;
+}
+
+function add_station(args) {
+  timeout(10000, fetch(args.station.file, {cache: "no-cache", method: "HEAD"}).then(function(response) {
+    if(response.ok) {
+      var stations_div = document.getElementById("radio-stations");
+      var new_img = document.createElement("img");
+      new_img.index = args.index;
+      new_img.onclick = select_station;
+      new_img.setAttribute("class", "radio-station-img");
+      new_img.src = "https://radio2you.co.uk/public/uploads/radio_img/" + args.station.url + "/play_250_250." + args.station.logo_type;
+      stations_div.appendChild(new_img);
+    } else {
+      throw new Error('Network response was not "ok".');
+    }
+  }), args)
+  .catch(function(error) {
+    console.log('There has been a problem fetching ' + args.station.file + ': ', error.message);
+  });
+}
+
+function add_stations() {
+  var i;
+  for (i = 0; i < radio_stations.length; i++) {
+    add_station({index: i, station: radio_stations[i]});
+  }
+}
+
+function remove_playing_station() {
+  remove_all_children(document.getElementById("radio-playing"));
+}
+
+// radio2you uses https which means the server requires TLS support (else use localhost)
+function select_station() {
+  var station = radio_stations[this.index];
+  var playing_div = document.getElementById("radio-playing");
+  remove_playing_station();
+  var new_iframe = document.createElement("iframe");
+  new_iframe.src = station.file;
+  new_iframe.setAttribute("class", "radio-playing-iframe");
+  playing_div.appendChild(new_iframe);
+}
+
+/*---------------------------------------------------------------------------------*/
+function update_progress_bar(track) {
+  var bar = document.getElementById("progress-bar");
+  try {
+    bar.style.width = (100 * track.viewOffset / track.duration) + "%";
+  } catch(err) {
+    bar.style.width = "0";
+  }
+}
+
 function clear_tabs() {
   remove_all_children(document.getElementById("playing"));
   tab_data = [];
@@ -207,6 +287,7 @@ function clear_track() {
   document.getElementById("artist").innerHTML = "";
   document.getElementById("album").innerHTML = "";
   remove_child(document.getElementById("album-art"));
+  update_progress_bar();
 }
 
 // called on mouse event to change to new player tab
@@ -278,7 +359,7 @@ function display_tabs(tracks) {
 function image_returned (headers) {
   var x;
   for(x of headers.entries()) 
-    if ((x[0] == "content-type") && (x[1].match(/^image/))) 
+    if ((x[0].toLowerCase() == "content-type") && (x[1].match(/^image/))) 
       return true;
   return false; 
 }
@@ -322,14 +403,14 @@ function image_error() {
 function display_track(track) {
   var trackTitle = track.title;
   document.getElementById("track").innerHTML = trackTitle;
-console.log("Track: " + trackTitle);
+//console.log("Track: " + trackTitle);
   var artist = track.grandparentTitle;
   document.getElementById("artist").innerHTML = artist;
-console.log("Artist: " + artist);
+//console.log("Artist: " + artist);
   var albumTitle = track.parentTitle;
   albumTitle = albumTitle.replace(/(.*?)\[.*?\](.*)/, '$1$2');
   document.getElementById("album").innerHTML = albumTitle;
-console.log("Album: " + albumTitle);
+//console.log("Album: " + albumTitle);
   var anim_dur = longest_string([trackTitle, artist, albumTitle])/15;
   anim_dur = (anim_dur < 7) ? 7 : anim_dur;
   document.getElementById("album").style.animationDuration = document.getElementById("track").style.animationDuration = document.getElementById("artist").style.animationDuration = anim_dur.toString() + "s"; 
@@ -439,6 +520,9 @@ function find_new_player(tracks) {
 // check the status from the PMS and decide whether the player is playing or paused or just disappeared (eg closed), find a new player if necessary, else allow the photo slide show to start
 function process_status(result) {
   var status;
+  if (screen == "radio") {
+    return;
+  }
   try {
     status = JSON.parse(result);
   } 
@@ -456,10 +540,9 @@ function process_status(result) {
   var not_playing_time = Date.now()/1000 - play_time;
   var ap;
 
-  hide(document.getElementById("please-wait"));
-  
   if ((!player_listed) && (not_playing_time < 6)) {
-    music_player = true;
+    screen = "music";
+    manage_ui();
     return;
   }
 
@@ -467,12 +550,14 @@ function process_status(result) {
   if (((player_listed) && (!playing) && (not_playing_time < 60)) ||
       ((player_listed) && (playing))) {
 //console.log("Staying with current player");
-    music_player = true;
+    screen = "music";
     display_tabs(tracks);
     if (track_changed(currentTrack, activePlayerTrack)) {
       activePlayerTrack = return_current_track_id(currentTrack);
       display_track(currentTrack);
     }
+    update_progress_bar(currentTrack);
+    manage_ui();
     return;
   }
 
@@ -480,12 +565,14 @@ function process_status(result) {
   if (((!player_listed) && (not_playing_time >= 10) && ((ap = find_new_playing_player(tracks)) != "")) || 
       ((player_listed) && (!playing) && (not_playing_time >= 60) && ((ap = find_new_playing_player(tracks)) != ""))) {
 //console.log("Changing to a new player");
-    music_player = true;
+    screen = "music";
     activePlayer = ap;
     [activePlayerIndex, currentTrack] = current_track(tracks, activePlayer);
     display_tabs(tracks);
     activePlayerTrack = return_current_track_id(currentTrack);
     display_track(currentTrack);
+    update_progress_bar(currentTrack);
+    manage_ui();
     return;
   }
 
@@ -493,14 +580,16 @@ function process_status(result) {
   if (((!player_listed) && (not_playing_time >= 10) && ((ap = find_new_player(tracks)) == "")) ||
       ((player_listed) && (!playing) && (not_playing_time >= 60) && ((ap = find_new_playing_player(tracks)) == ""))) {
 //console.log("Nothing to listen to here");
-    music_player = false;
+    screen = "photos";
     activePlayer = "";
     clear_tabs();
     clear_track();
     activePlayerTrack = "";
+    manage_ui();
     return;
-  } 
+  }
 
+  manage_ui();
 }
 
 // display the track info with/out pause indication else photo slideshow
@@ -508,27 +597,50 @@ function manage_ui() {
   var circles = document.getElementById("circles-div");
   var pause_lines = document.getElementsByClassName("paused")[0];
   var photos = document.getElementById("photos");
+  var stations = document.getElementById("stations");
+  var wait = document.getElementById("please-wait");
   if (playing) {
     play_time = Date.now() / 1000;
   }
-  if (music_player) {
-    hide(photos);
-    if (playing) {
-      show(circles);
+  switch(screen) {
+    case "music":
+      hide(wait);
+      hide(photos);
+      hide(stations);
+      if (playing) {
+        show(circles);
+        hide(pause_lines);
+      }
+      if (paused) {
+        hide(circles);
+        show(pause_lines);    
+      }
+      if (!playing && !paused) {
+        hide(circles);
+        hide(pause_lines);    
+      }
+      break;
+    case "photos":
+      hide(wait);
+      show(photos);
+      hide(stations);
+      hide(circles);
       hide(pause_lines);
-    }
-    if (paused) {
+      break;
+    case "radio":
+      hide(wait);
+      hide(photos);
+      show(stations);
       hide(circles);
-      show(pause_lines);    
-    }
-    if (!playing && !paused) {
+      hide(pause_lines);
+      break;
+    case "wait":
+      show(wait);
+      hide(photos);
+      hide(stations);
       hide(circles);
-      hide(pause_lines);    
-    }
-  } else {
-    show(photos);
-    hide(circles);
-    hide(pause_lines);    
+      hide(pause_lines);
+    default:
   }
 }
 
@@ -589,7 +701,6 @@ function video_error(event) {
 
 // request photo from worker
 function display_photo() {
-  hide(document.getElementById("please-wait"));
   worker.postMessage({"type": "photo-request"});
 }
 
@@ -608,10 +719,11 @@ function receive_message(event) {
 }
 
 function receive_photo(photo) {
-  if (music_player) {                                  // if music is playing/active, don't bother updating the photo
+  if (screen != "photos") {                                  // if music or radio is playing/active, don't bother updating the photo
     setTimeout(display_photo, 2000);
     return;
   }
+  manage_ui();
   var image = document.getElementById("photo-img");
   var video = document.getElementById("video-img");
   image.setAttribute("visibility", "hidden");
@@ -657,11 +769,15 @@ function receive_photo(photo) {
 
 /*---------------------------------------------------------------------------------*/
 async function start_monitor() {
+  screen = "wait";
+  manage_ui();
   start_worker();
   await construct_params();
   clear_track();
   clear_tabs();
+  add_stations();
   setInterval(get_plex_status, 2000);             // start monitoring for playing audio
+  screen = "photos";
   display_photo();                                // go display photo slideshow (if no audio playing)
   init_swipes();
 }

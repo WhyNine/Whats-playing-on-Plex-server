@@ -281,6 +281,19 @@ span.scroll {
   width:98px;
 }
 
+.progress-bar-div {
+  top:315px;
+  left:200px;
+  width: 180px;
+  height: 5px;
+  position: absolute;
+}
+
+.progress-bar {
+  height: 100%;
+  background-color: gold;
+}
+
 /* --------------------------------------------------------- */
 .circles {
   position: absolute;
@@ -392,4 +405,37 @@ span.scroll {
 
 .hidden {
   visibility:hidden;
+}
+
+/* -------------------------------------------------- */
+.radio-playing-div {
+  position: absolute;
+  top: 200px;
+  left: 0px;
+  width: 480px;
+  height: 120px;
+  background-color: gray;
+}
+
+.radio-station-div {
+  position: absolute;
+  top: 0px;
+  left: 0px;
+  width: 480px;
+  height: 200px;
+  overflow: hidden;
+  background-color: gray;
+}
+
+.radio-playing-iframe {
+  border: 0px;
+  width: 480px;
+  height: 120px;
+  background-color: gray;
+}
+
+.radio-station-img {
+  padding: 3px;
+  width: 90px;
+  height: 90px;
 }
