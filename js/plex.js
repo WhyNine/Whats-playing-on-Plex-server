@@ -39,7 +39,9 @@ var radio = false;                          // true when displaying the radio pa
 // function is written synchronously as we can't do anything without the token
 async function construct_params() {
   var params;
+  var client_id = makeid(16);
   var encoded = "Basic " + btoa(plex_username + ":" + plex_password);
+  tokens.push(["X-Plex-Client-Identifier", client_id]);
   var new_tokens = tokens.slice();
   new_tokens.push(['Authorization', encoded]);
   try {
@@ -76,6 +78,17 @@ async function construct_params() {
     console.log('There has been a problem obtaining the authentication token');
     document.getElementById("please-wait-p").innerText = "Auhentication error";
   }
+  fetch(plexUrl + "/clients", {cache: "no-cache", headers: tokens}).then(function(response) { console.log(response.text())});
+}
+
+function makeid(length) {
+  var result           = '';
+  var characters       = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  var charactersLength = characters.length;
+  for ( var i = 0; i < length; i++ ) {
+     result += characters.charAt(Math.floor(Math.random() * charactersLength));
+  }
+  return result;
 }
 
 // add timeout to a promise as per https://stackoverflow.com/a/46946573/11558356
@@ -753,7 +766,7 @@ function receive_photo(photo) {
         start = Math.floor(Math.random() * (duration - 60000)) / 1000;   // pick a point to start somewhere in the video
         duration = 60000;
       }
-      url = plexUrl + "/video/:/transcode/universal/start.mp4?path=" + encodeURI(photo.url) + "&mediaIndex=0&partIndex=0&protocol=http&offset=" + start + "&fastSeek=1&directPlay=0&directStream=1&videoQuality=50&videoResolution=480x320&maxVideoBitrate=2000&subtitleSize=100&audioBoost=100&" + plexParams;  // %2Flibrary%2Fmetadata%2F23654
+      url = plexUrl + "/video/:/transcode/universal/start.mp4?path=" + encodeURI(photo.url) + "&mediaIndex=0&partIndex=0&protocol=http&offset=" + start + "&fastSeek=1&directPlay=0&directStream=1&videoQuality=50&videoResolution=480x320&maxVideoBitrate=2000&subtitleSize=100&audioBoost=100&" + plexParams;
       video.setAttribute("src", url);
       video.setAttribute("visibility", "visible");
       video.oncanplay = play_video;
