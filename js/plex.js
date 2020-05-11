@@ -16,6 +16,7 @@ var paused = false;                            // true when music paused
 var screen = "wait";                           // can be either "wait", "photos", "music" or "stations"
 var play_time = Date.now() / 1000;
 var tab_data = [];                             // record of player associated with tabs
+var command_id = 1;
 
 var swipe_start = {};                          // starting position of the swipe gesture
 var swipe_functions = {"up": undefined, "down": undefined, "left": undefined, "right": undefined};
@@ -78,7 +79,7 @@ async function construct_params() {
     console.log('There has been a problem obtaining the authentication token');
     document.getElementById("please-wait-p").innerText = "Auhentication error";
   }
-  fetch(plexUrl + "/clients", {cache: "no-cache", headers: tokens}).then(function(response) { console.log(response.text())});
+//  fetch(plexUrl + "/clients", {cache: "no-cache", headers: tokens}).then(function(response) { console.log(response.text())});
 }
 
 function makeid(length) {
@@ -185,8 +186,8 @@ function start_worker() {
 function init_swipes() {
   window.addEventListener('touchstart', record_swipe_start);
   window.addEventListener('touchend', action_swipe_end);
-  swipe_functions.left = function() {next_player()};
-  swipe_functions.right = function() {previous_player()};
+  swipe_functions.left = function() {skip_next_track()};
+  swipe_functions.right = function() {skip_previous_track()};
   swipe_functions.up = function() {show_radio()};
 }
 
@@ -232,8 +233,8 @@ function hide_radio() {
   screen = "photos";
   remove_playing_station();
   manage_ui();
-  swipe_functions.left = function() {next_player()};
-  swipe_functions.right = function() {previous_player()};
+  swipe_functions.left = function() {skip_next_track()};
+  swipe_functions.right = function() {skip_previous_track()};
   swipe_functions.up = function() {show_radio()};
   swipe_functions.down = undefined;
 }
@@ -330,6 +331,38 @@ function previous_player() {
     activePlayer = tab_data[tabs[i-1].attributes.tab_index.nodeValue];
     console.log("Changed to previous player");
   }
+}
+
+function skipped_next_track() {
+  console.log("Skipped to next track");
+}
+
+function skip_next_track() {
+  var tabs = document.getElementsByClassName("tabs");           // find all the player tabs being displayed
+  var i = 0;
+  while (tabs[i].getAttribute("class") != "active-tab tabs") 
+    i++;
+  var player = tab_data[tabs[i].attributes.tab_index.nodeValue];
+  var client_session = player.split(":");
+  var skip_command = `/player/playback/skipNext?type=music&commandID=${command_id++}&X-Plex-Target-Client-Identifier=${client_session[0]}`;
+  call_fetch(skip_command, skipped_next_track);
+  console.log(skip_command);
+}
+
+function skipped_previous_track() {
+  console.log("Skipped to previous track");
+}
+
+function skip_previous_track() {
+  var tabs = document.getElementsByClassName("tabs");           // find all the player tabs being displayed
+  var i = 0;
+  while (tabs[i].getAttribute("class") != "active-tab tabs") 
+    i++;
+  var player = tab_data[tabs[i].attributes.tab_index.nodeValue];
+  var client_session = player.split(":");
+  var skip_command = `/player/playback/skipPrevious?type=music&commandID=${command_id++}&X-Plex-Target-Client-Identifier=${client_session[0]}`;
+  call_fetch(skip_command, skipped_previous_track);
+  console.log(skip_command);
 }
 
 function display_tabs(tracks) {
