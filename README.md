@@ -11,7 +11,10 @@ This web client is designed to display on a 480x320 pixel panel in full screen m
 * Scrapes a list of all the photos and videos stored on the PMS, checking for updates at regular intervals.
 * If there are no active client devices, starts a slide show of all the photos and videos stored on the PMS.
 * Photos and videos are selected at random from the scraped list. A photo is displayed for 20s while for videos a random 60s portion is played.
-* Can play a selection of radio stations (accessed via a swipe-up on a touch screen followed by clicking on the required station icon).
+* Can play a selection of radio stations.
+* From the status or slideshow screen, swiping up displays the radio stations. Clicking on a radio station starts playing it.
+* From the radio stations screen, swiping down moves back to the status or slideshow screen.
+* On the status screen, swiping left/right moves the remote client device to the next/previous track. Clicking on a tab displays the status for that client device.
 
 ## Installation
 The web client uses the Balonku font, which may be downloaded from https://www.fontspace.com/azkarizki/balonku and copied to the fonts folder. The file js/custom-example.js has to be renamed to js/custom.js and customised with the URL of the PMS and the appropriate user credentials.
@@ -19,4 +22,4 @@ Note that the web client uses a web worker to scrape the list of photos. This me
 Radio stations are played using the embedded radio player provided by UKRadioLive (see https://ukradiolive.com/embed-radio). If you want to change the list of radio stations, copy the code from UKRadioLive (make sure the "Radio starts automatically" tick-box is ticked) and create a new html file (use an existing one as a template). Then modify the array radio_stations in plex.js. 
 
 ## More information
-The following website was very helpful in determining how to access the PMS: https://github.com/Arcanemagus/plex-api/wiki/Plex-Web-API-Overview. Working out the parameters for the video transcoding were a bit hit & miss but seem to work ok. 
+The following websites were very helpful in determining how to access the PMS: https://github.com/Arcanemagus/plex-api/wiki/Plex-Web-API-Overview and https://github.com/plexinc/plex-media-player/wiki/Remote-control-API. Working out the parameters for the video transcoding were a bit hit & miss but seem to work ok. 
