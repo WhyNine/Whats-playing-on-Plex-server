@@ -344,7 +344,7 @@ function skip_next_track() {
     i++;
   var player = tab_data[tabs[i].attributes.tab_index.nodeValue];
   var client_session = player.split(":");
-  var skip_command = `/player/playback/skipNext?type=music&commandID=${command_id++}&X-Plex-Target-Client-Identifier=${client_session[0]}`;
+  var skip_command = "/player/playback/skipNext?type=music&commandID=" + command_id++ + "&X-Plex-Target-Client-Identifier=" + client_session[0];
   call_fetch(skip_command, skipped_next_track);
   console.log(skip_command);
 }
@@ -360,7 +360,7 @@ function skip_previous_track() {
     i++;
   var player = tab_data[tabs[i].attributes.tab_index.nodeValue];
   var client_session = player.split(":");
-  var skip_command = `/player/playback/skipPrevious?type=music&commandID=${command_id++}&X-Plex-Target-Client-Identifier=${client_session[0]}`;
+  var skip_command = "/player/playback/skipPrevious?type=music&commandID=" + command_id++ + "&X-Plex-Target-Client-Identifier=" + client_session[0];
   call_fetch(skip_command, skipped_previous_track);
   console.log(skip_command);
 }
