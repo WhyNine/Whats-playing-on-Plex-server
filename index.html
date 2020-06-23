@@ -66,8 +66,12 @@
     <div class="paused-r"></div>
   </div>
 
-  <!-- Photo -->
-  <div class="photo-div" id="photos"><img id="photo-img" /><video id="video-img" muted></div>
+  <!-- Photo/video -->
+  <div class="photo-div" id="photos">
+    <img id="photo-img" />
+    <video id="video-img" muted autoplay></video>
+    <p id="loading-video-p">Loading video</p>
+  </div>
 
   <!-- Radio stations -->
   <div id="stations" class="hidden">
@@ -77,7 +81,7 @@
 
   <!-- Please Wait text, only used at start up -->
   <div class="please-wait" id="please-wait">
-    <p id="please-wait-p">Please wait for app to start</p>
+    <p id="please-wait-p"></p>
   </div>
 
 </body>

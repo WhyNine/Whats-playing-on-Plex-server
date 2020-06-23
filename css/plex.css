@@ -304,12 +304,15 @@ span.scroll {
   display: inline-block;
   border-radius: 50%;
   border: 120px solid;
+  z-index: -2;
+  border-color:#303030;
+}
+
+.circle_animation {
   animation-name: scale;
   animation-timing-function: linear;
   animation-duration: 21s;
   animation-iteration-count: infinite;
-  z-index: -2;
-  border-color:#303030;
 }
 
 .circle1 {
@@ -390,13 +393,29 @@ span.scroll {
 }
 
 .photo-div img {
+  position: absolute;
+  top: 0px;
+  left: 0px;
   height:320px;
   max-width:480px;
 }
 
 .photo-div video {
+  position: absolute;
+  top: 0px;
+  left: 50%;
+  transform: translateX(-50%);
   height:320px;
   max-width:480px;
+}
+
+.photo-div p {
+  color: #d0cccc;
+  font-family:"Calibri",sans-serif;
+  top: 80px;
+  left: 100px;
+  position: absolute;
+  font-size: 40px;
 }
 
 .visible {

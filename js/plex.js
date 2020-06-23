@@ -17,12 +17,14 @@ var screen = "wait";                           // can be either "wait", "photos"
 var play_time = Date.now() / 1000;
 var tab_data = [];                             // record of player associated with tabs
 var command_id = 1;
+var photo_timer;
 
 var swipe_start = {};                          // starting position of the swipe gesture
 var swipe_functions = {"up": undefined, "down": undefined, "left": undefined, "right": undefined};
 
 var worker;
 var worker_ready = false;
+var worker_discovery_complete = false;
 
 var radio_stations = [
   { file: "iframe-bbc-4.html", logo_type: "jpg", url: "bbc-radio-4" },
@@ -72,7 +74,7 @@ async function construct_params() {
     if (worker !== undefined) {
       while (!worker_ready)
         await __delay__(500);
-      worker.postMessage({"type": "params", "data": {"params": plexParams, "tokens": tokens}});
+      worker.postMessage({"type": "params", "data": {"params": plexParams, "tokens": tokens, "codecs": codecs, "max_video_resolution": max_video_resolution}});
       console.log("Sent params to worker");
     }
   } catch {
@@ -105,6 +107,11 @@ function timeout(ms, promise) {
 // fetch required resource from url then call function func with the response and additional argument arg
 // add a 10s time-out to all calls
 function call_fetch(url, func, arg) {
+  if (url.includes("?"))
+    url += "&";
+  else
+    url += "?";
+  url += "session=plexmain";
   timeout(10000, fetch(plexUrl + url, {cache: "no-cache", headers: tokens}).then(function(response) {
     if(response.ok) {
       response.text().then(function (txt) {func(txt, arg)}, func, arg);
@@ -172,6 +179,10 @@ function checkOverflow(el)
    el.style.overflow = curOverflow;
    return isOverflowing;
 }
+
+function set_wait_div_message(str) {
+  document.getElementById("please-wait-p").innerText = str;
+}
     
 /*---------------------------------------------------------------------------------*/
 function start_worker() {
@@ -183,12 +194,44 @@ function start_worker() {
   }
 }
 
-function init_swipes() {
+function add_swipe_events() {
   window.addEventListener('touchstart', record_swipe_start);
   window.addEventListener('touchend', action_swipe_end);
-  swipe_functions.left = function() {skip_next_track()};
-  swipe_functions.right = function() {skip_previous_track()};
-  swipe_functions.up = function() {show_radio()};
+}
+
+function init_swipes() {
+  switch (screen) {
+    case "music":
+      swipe_functions.left = function() {skip_next_track()};
+      swipe_functions.right = function() {skip_previous_track()};
+      swipe_functions.up = function() {show_radio()};
+      swipe_functions.down = undefined;
+      break;
+    case "radio":
+      swipe_functions.left = undefined;
+      swipe_functions.right = undefined;
+      swipe_functions.up = undefined;
+      swipe_functions.down = function() {hide_radio()};
+      break;
+    case "photos":
+      swipe_functions.left = function() {
+        clearTimeout(photo_timer);
+        display_photo()
+      };
+      swipe_functions.right = function() {
+        clearTimeout(photo_timer);
+        display_photo()
+      };
+      swipe_functions.up = function() {show_radio()};
+      swipe_functions.down = undefined;
+      break;    
+    default:
+      swipe_functions.left = undefined;
+      swipe_functions.right = undefined;
+      swipe_functions.up = undefined;
+      swipe_functions.down = function() {hide_radio()};
+      break;
+  }
 }
 
 function record_swipe_start(event) {
@@ -222,10 +265,6 @@ function action_swipe_end(event) {
 /*---------------------------------------------------------------------------------*/
 function show_radio() {
   screen = "radio";
-  swipe_functions.left = undefined;
-  swipe_functions.right = undefined;
-  swipe_functions.up = undefined;
-  swipe_functions.down = function() {hide_radio()};
   manage_ui();
 }
 
@@ -233,10 +272,6 @@ function hide_radio() {
   screen = "photos";
   remove_playing_station();
   manage_ui();
-  swipe_functions.left = function() {skip_next_track()};
-  swipe_functions.right = function() {skip_previous_track()};
-  swipe_functions.up = function() {show_radio()};
-  swipe_functions.down = undefined;
 }
 
 function add_station(args) {
@@ -247,7 +282,7 @@ function add_station(args) {
       new_img.index = args.index;
       new_img.onclick = select_station;
       new_img.setAttribute("class", "radio-station-img");
-      new_img.src = "https://radio2you.co.uk/public/uploads/radio_img/" + args.station.url + "/play_250_250." + args.station.logo_type;
+      new_img.src = "https://ukradiolive.com/public/uploads/radio_img/" + args.station.url + "/play_250_250." + args.station.logo_type;
       stations_div.appendChild(new_img);
     } else {
       throw new Error('Network response was not "ok".');
@@ -269,7 +304,7 @@ function remove_playing_station() {
   remove_all_children(document.getElementById("radio-playing"));
 }
 
-// radio2you uses https which means the server requires TLS support (else use localhost)
+// ukradiolive uses https which means the server requires TLS support (else use localhost)
 function select_station() {
   var station = radio_stations[this.index];
   var playing_div = document.getElementById("radio-playing");
@@ -344,7 +379,7 @@ function skip_next_track() {
     i++;
   var player = tab_data[tabs[i].attributes.tab_index.nodeValue];
   var client_session = player.split(":");
-  var skip_command = "/player/playback/skipNext?type=music&commandID=" + command_id++ + "&X-Plex-Target-Client-Identifier=" + client_session[0];
+  var skip_command = `/player/playback/skipNext?type=music&commandID=${command_id++}&X-Plex-Target-Client-Identifier=${client_session[0]}`;
   call_fetch(skip_command, skipped_next_track);
   console.log(skip_command);
 }
@@ -360,7 +395,7 @@ function skip_previous_track() {
     i++;
   var player = tab_data[tabs[i].attributes.tab_index.nodeValue];
   var client_session = player.split(":");
-  var skip_command = "/player/playback/skipPrevious?type=music&commandID=" + command_id++ + "&X-Plex-Target-Client-Identifier=" + client_session[0];
+  var skip_command = `/player/playback/skipPrevious?type=music&commandID=${command_id++}&X-Plex-Target-Client-Identifier=${client_session[0]}`;
   call_fetch(skip_command, skipped_previous_track);
   console.log(skip_command);
 }
@@ -595,7 +630,6 @@ function process_status(result) {
 // Stay with current player if its playing or if its been paused/buffering for under 60s  
   if (((player_listed) && (!playing) && (not_playing_time < 60)) ||
       ((player_listed) && (playing))) {
-//console.log("Staying with current player");
     screen = "music";
     display_tabs(tracks);
     if (track_changed(currentTrack, activePlayerTrack)) {
@@ -610,7 +644,6 @@ function process_status(result) {
 // Change to a new player if the current player is not listed anymore (for more than 10s) or it hasn't been playing for 60s and there's another player that is    
   if (((!player_listed) && (not_playing_time >= 10) && ((ap = find_new_playing_player(tracks)) != "")) || 
       ((player_listed) && (!playing) && (not_playing_time >= 60) && ((ap = find_new_playing_player(tracks)) != ""))) {
-//console.log("Changing to a new player");
     screen = "music";
     activePlayer = ap;
     [activePlayerIndex, currentTrack] = current_track(tracks, activePlayer);
@@ -625,7 +658,6 @@ function process_status(result) {
 // Switch to the photos if there are not players listed anymore (for more than 10s) or the current player hasn't been playing for at least 60s  
   if (((!player_listed) && (not_playing_time >= 10) && ((ap = find_new_player(tracks)) == "")) ||
       ((player_listed) && (!playing) && (not_playing_time >= 60) && ((ap = find_new_playing_player(tracks)) == ""))) {
-//console.log("Nothing to listen to here");
     screen = "photos";
     activePlayer = "";
     clear_tabs();
@@ -648,6 +680,7 @@ function manage_ui() {
   if (playing) {
     play_time = Date.now() / 1000;
   }
+  init_swipes();
   switch(screen) {
     case "music":
       hide(wait);
@@ -688,6 +721,13 @@ function manage_ui() {
       hide(pause_lines);
     default:
   }
+  if (circles.classList.contains("visible")) {
+    for (var item of document.getElementsByClassName("circles"))
+      item.classList.add("circle_animation");
+  } else {
+    for (var item of document.getElementsByClassName("circles"))
+      item.classList.remove("circle_animation");
+  }
 }
 
 // get the status of the PMS
@@ -708,15 +748,19 @@ function photo_image_error(event) {
 
 // start playing the video once it has reached the state canplay
 function play_video(event) {
-  video = event.target;
+  var video = event.target;
   video.oncanplay = null;
+  var loading = document.getElementById("loading-video-p");
   var timer = setInterval(function() {
     if (video.paused && video.readyState == 4 || !video.paused) {
       video.play()
       .then(function(response) {
         console.log("playing video " + video.getAttribute("src"));
+        hide(loading);
       }).catch(function(error) {
         console.log('There has been a problem with starting playback of the video: ' + error.message);
+        clearTimeout(photo_timer);
+        display_photo();
       });
       clearInterval(timer);
     }       
@@ -724,25 +768,28 @@ function play_video(event) {
 }
 
 function video_error(event) {
-  event.target.onerror = null;
-  console.log("Error playing video from " + event.target.getAttribute("src") + ": " + event.type);
-  switch (event.target.error.code) {
-    case event.target.error.MEDIA_ERR_ABORTED:
+  var video = event.target;
+  video.onerror = null;
+  console.log("Error playing video from " + video.getAttribute("src") + ": " + event.type);
+  switch (video.error.code) {
+    case video.error.MEDIA_ERR_ABORTED:
       console.log('You aborted the video playback.');
       break;
-    case event.target.error.MEDIA_ERR_NETWORK:
+    case video.error.MEDIA_ERR_NETWORK:
       console.log('A network error caused the video download to fail part-way.');
       break;
-    case event.target.error.MEDIA_ERR_DECODE:
+    case video.error.MEDIA_ERR_DECODE:
       console.log('The video playback was aborted due to a corruption problem or because the video used features your browser did not support.');
       break;
-    case event.target.error.MEDIA_ERR_SRC_NOT_SUPPORTED:
+    case video.error.MEDIA_ERR_SRC_NOT_SUPPORTED:
       console.log('The video could not be loaded, either because the server or network failed or because the format is not supported.');
       break;
     default:
       console.log('An unknown error occurred.');
       break;
   }
+  clearTimeout(photo_timer);
+  photo_timer = setTimeout(display_photo, 1000);
 }
 
 // request photo from worker
@@ -750,65 +797,75 @@ function display_photo() {
   worker.postMessage({"type": "photo-request"});
 }
 
-// if no music playing, display a photo/video
 function receive_message(event) {
-  console.log("Message received from worker: " + event.data.type);
-  switch (event.data.type) {
+  var message = event.data;
+  console.log("Message received from worker: " + message.type);
+  switch (message.type) {
     case "ready":
       worker_ready = true;
       break;
+    case "discovery-complete":
+      worker_discovery_complete = true;
+      console.log("Number of discovered photos = " + message.num_photos);
+      break;
     case "photo":
-      receive_photo(event.data.data);
+      if (worker_ready && worker_discovery_complete)                                                 // message received too early if both not set
+        receive_photo(message.data);
       break;
     default:
   }
 }
 
+// if no music playing, display a photo/video
 function receive_photo(photo) {
+  var loading = document.getElementById("loading-video-p");
+  hide(loading);
   if (screen != "photos") {                                  // if music or radio is playing/active, don't bother updating the photo
-    setTimeout(display_photo, 2000);
+    photo_timer = setTimeout(display_photo, 2000);
     return;
   }
   manage_ui();
   var image = document.getElementById("photo-img");
-  var video = document.getElementById("video-img");
   image.setAttribute("visibility", "hidden");
+  image.setAttribute("src", "");
+  var video = document.getElementById("video-img");
   video.setAttribute("visibility", "hidden");
+  video.setAttribute("src", "");
+  video.volume = 0;
   if (photo == undefined) {
     console.log("Hmm, no photos found ... ");
     image.setAttribute("src", "images/no-photos.png");
     image.setAttribute("visibility", "visible");
-    setTimeout(display_photo, 10000);
+    photo_timer = setTimeout(display_photo, 10000);
     return;
   }
-  video.setAttribute("src", "");
-  console.log("Displaying photo/video " + photo.url);
+  console.log("Displaying photo/video " + photo.url + ", width:height = " + photo.width + ":" + photo.height);
   switch (photo.type) {
     case "photo":           // use the PMS transcoder to scale it to the right size and rotate it if necesary at the same time
-      var url = plexUrl + "/photo/:/transcode?width=480&height=320&minSize=1&url=" + encodeURIComponent(photo.url) + "&" + plexParams;
+      var url = plexUrl + "/photo/:/transcode?width=480&height=320&minSize=1&session=plexaudio&url=" + encodeURIComponent(photo.url) + "&" + plexParams;
       image.onerror = photo_image_error;
       image.setAttribute("src", url);
       image.setAttribute("visibility", "visible");
-      setTimeout(display_photo, 20000);
+      photo_timer = setTimeout(display_photo, 20000);
       break;
-    case "video":         // use the PMS transcoder to scale it to fit and change the codec to AVC (which Chrome can play)
-      var url;
+    case "video":
+      show(loading);
       var duration = photo.duration;
       var start = 0;
       if (duration > 60000) {
         start = Math.floor(Math.random() * (duration - 60000)) / 1000;   // pick a point to start somewhere in the video
         duration = 60000;
       }
-      url = plexUrl + "/video/:/transcode/universal/start.mp4?path=" + encodeURI(photo.url) + "&mediaIndex=0&partIndex=0&protocol=http&offset=" + start + "&fastSeek=1&directPlay=0&directStream=1&videoQuality=50&videoResolution=480x320&maxVideoBitrate=2000&subtitleSize=100&audioBoost=100&" + plexParams;
-      video.setAttribute("src", url);
-      video.setAttribute("visibility", "visible");
+      var url = plexUrl + photo.part_key + "?session=plexvideo&" + plexParams + "#t=" + start + "," + (start+duration);
       video.oncanplay = play_video;
       video.onerror = video_error;
-      setTimeout(display_photo, duration);
+      video.setAttribute("src", url);
+      video.setAttribute("visibility", "visible");
+      photo_timer = setTimeout(display_photo, duration);
       break;
     default:
       console.log("Hmm, shouldn't get here. photo.type = " + photo.type);
-      setTimeout(display_photo, 1000);
+      photo_timer = setTimeout(display_photo, 1000);
   }
 }
 
@@ -816,14 +873,19 @@ function receive_photo(photo) {
 /*---------------------------------------------------------------------------------*/
 async function start_monitor() {
   screen = "wait";
+  add_swipe_events();
+  set_wait_div_message("Please wait: retrieving credentials");
   manage_ui();
   start_worker();
   await construct_params();
+  set_wait_div_message("Please wait: discovering photos/videos");
   clear_track();
   clear_tabs();
   add_stations();
-  setInterval(get_plex_status, 2000);             // start monitoring for playing audio
+  while (!worker_discovery_complete)              // wait for the photo list to be populated
+    await __delay__(5000);
   screen = "photos";
+  setInterval(get_plex_status, 2000);             // start monitoring for playing audio
   display_photo();                                // go display photo slideshow (if no audio playing)
   init_swipes();
 }

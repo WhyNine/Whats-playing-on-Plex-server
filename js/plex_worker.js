@@ -6,8 +6,13 @@ var plexParams = "";
 var photo_list = [];                           // array with all the photos on Plex
 var num_photos;
 var fetch_flag = false;
+var proc_count = 0;
 
 /*---------------------------------------------------------------------------------*/
+function print_proc_count() {
+  console.log("proc_count = " + proc_count);
+}
+
 function __delay__(timer) {
   return new Promise(resolve => {
       timer = timer || 2000;
@@ -35,6 +40,7 @@ async function call_fetch(url, func, arg) {
   }, func, arg)
   .catch(function(error) {
     fetch_flag = false;
+    proc_count--;
     console.log('Worker: There has been a problem fetching ' + url + ': ', error.message);
   });
 }
@@ -46,9 +52,38 @@ function add_photo_to_list(current_array, key, w, h, updated, added) {
   current_array.push(item);
 }
 
-function add_video_to_list(current_array, key, duration, updated, added) {
-  var item = {"updated": updated, "added": added, "duration": duration, "url": key, "type": "video"};
-  current_array.push(item);
+function check_video(video_codec, width, height) {
+  return (codecs.video.includes(video_codec) && (width <= max_video_resolution.width) && (height <= max_video_resolution.height));
+}
+
+function check_audio(audio_codec) {
+  return (codecs.audio.includes(audio_codec));
+}
+
+function check_video_playability(txt, item) {
+  var result = JSON.parse(txt);
+  var media = result.MediaContainer.Metadata[0].Media[0];
+  var part = media.Part[0];
+  if ((result.MediaContainer.mdeDecisionCode == 1000) && (part.key !== undefined) && check_video(media.videoCodec, media.width, media.height) && check_audio(media.audioCodec)) {
+    var photo_array = item.array;
+    delete item.array;
+    item.part_key = part.key;
+    item.width = media.width;
+    item.height = media.height;
+    if (part.size < 50000000) {               // check file size <50M, files too large would take too long to load and seek into
+      photo_array.push(item);
+    }
+  }
+  else
+    console.log("video not playable\n");
+  proc_count--;
+}
+
+function check_video_playable(current_array, key, duration, updated, added) {
+  var url = "/video/:/transcode/universal/decision?hasMDE=1&mediaIndex=0&partIndex=0&protocol=http&path=" + key;
+  var item = {"updated": updated, "added": added, "duration": duration, "url": key, "type": "video", "array": current_array};
+  proc_count++;
+  call_fetch(url, check_video_playability, item);
 }
 
 function add_directory_to_list(current_array, new_array, updated, added, url) {
@@ -93,7 +128,7 @@ function process_dir(txt, current_array) {
             var updated = contents[i].updatedAt;
             var added = contents[i].addedAt;
             var duration = contents[i].duration;
-            add_video_to_list(current_array, key, duration, updated, added);
+            check_video_playable(current_array, key, duration, updated, added);
             break;
           default:
             console.log("------ Worker found unknown content type " + contents[i].type);
@@ -102,9 +137,11 @@ function process_dir(txt, current_array) {
   } else {
     console.log("----- Worker: no Metadata found in " + txt);
   }
+  proc_count--;
 }
 
 function find_directory_contents(key, current_array) {
+  proc_count++;
   call_fetch(key, process_dir, current_array);
 }
 
@@ -212,7 +249,7 @@ function update_dir(txt, current_array) {
                 current_array[match].duration = duration;
               }
             } else 
-              add_video_to_list(current_array, key, duration, updated, added);
+              check_video_playable(current_array, key, duration, updated, added);
             break;
           default:
           }
@@ -222,9 +259,11 @@ function update_dir(txt, current_array) {
   previous_photos.forEach(function(item) {
       this.splice(item, 1);                                     // delete all of the other photos not matched above
   }, current_array);
+  proc_count--;
 }
 
 function check_directory_contents(key, current_array) {
+  proc_count++;
   call_fetch(key, update_dir, current_array);
 }
 
@@ -262,16 +301,23 @@ function update_photo_section_id(txt) {
   } else {
     console.log("----- Worker: no Directory found in " + txt);
   }
-  if (photo_list.length == 0)
-    console.log("NO PHOTOS DISCOVERED");
-  }
+  proc_count--;
+}
 
-function update_photo_list() {
-  console.log("Worker: updating the photo list ****************************");
-  call_fetch("/library/sections", update_photo_section_id);
+async function update_photo_list() {
+  if (proc_count == 0) {
+    console.log("Worker: updating the photo list ****************************");
+    proc_count++;
+    call_fetch("/library/sections", update_photo_section_id);
+    await __delay__(1000);
+    while (proc_count > 0)
+      await __delay__(1000);
+    console.log("Worker: photo list update complete ****************************");
+  }
 }
 
 function discover_photos() {
+  proc_count++;
   call_fetch("/library/sections", update_photo_section_id);
 }
 
@@ -305,8 +351,17 @@ function find_photo(current_array, num) {
   }
 }
 
+/*---------------------------------------------------------------------------------*/
+
+// plex                 plexworker
+//                <--   ready
+// params         -->
+//                <--   discovery-complete
+// photo-request  -->                   | repeat these ...
+//                <--   photo           | ... two messages as required
+
 // process message received from the web worker
-function receive(message) {
+async function receive(message) {
   console.log("Worker: received message " + message.data.type);
   switch(message.data.type) {
     case "params": 
@@ -314,6 +369,13 @@ function receive(message) {
       tokens = message.data.data.tokens;
       console.log("Worker: starting photo discovery");
       discover_photos();
+      await __delay__(5000);
+      while (proc_count > 0)          // wait until photo discovery complete
+        await __delay__(5000);
+      console.log("Worker: discovery complete");
+      num_photos = 0;
+      count_photos(photo_list);
+      postMessage({"type": "discovery-complete", "num_photos": num_photos});
       break;
     case "photo-request": 
       num_photos = 0;
@@ -325,6 +387,7 @@ function receive(message) {
       }
       console.log("Worker: number of photos = " + num_photos);
       postMessage({"type": "photo", "data": find_photo(photo_list, Math.floor(Math.random() * num_photos))});
+//      postMessage({"type": "photo", "data": find_photo(photo_list, 1)});
       break;
     default:
       console.log("Worker: unknown message received");
