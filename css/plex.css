@@ -395,7 +395,8 @@ span.scroll {
 .photo-div img {
   position: absolute;
   top: 0px;
-  left: 0px;
+  left: 50%;
+  transform: translateX(-50%);
   height:320px;
   max-width:480px;
 }
