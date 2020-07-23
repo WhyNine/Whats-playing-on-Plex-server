@@ -22,4 +22,5 @@ Note that the web client uses a web worker to scrape the list of photos. This me
 Radio stations are played using the embedded radio player provided by UKRadioLive (see https://ukradiolive.com/embed-radio). If you want to change the list of radio stations, copy the code from UKRadioLive (make sure the "Radio starts automatically" tick-box is ticked) and create a new html file (use an existing one as a template). Then modify the array radio_stations in plex.js. 
 
 ## More information
-The following websites were very helpful in determining how to access the PMS: https://github.com/Arcanemagus/plex-api/wiki/Plex-Web-API-Overview and https://github.com/plexinc/plex-media-player/wiki/Remote-control-API. Working out the parameters for the video transcoding were a bit hit & miss but seem to work ok. 
+The following websites were very helpful in determining how to access the PMS: https://github.com/Arcanemagus/plex-api/wiki/Plex-Web-API-Overview and https://github.com/plexinc/plex-media-player/wiki/Remote-control-API. 
+Videos are only played if they are less than 50Mbytes and are in a format that can be decoded by the client device.
