@@ -112,7 +112,11 @@ function call_fetch(url, func, arg) {
   else
     url += "?";
   url += "session=plexmain";
+  while (status_fetch)
+    __delay__(500);
+  status_fetch = true;
   timeout(10000, fetch(plexUrl + url, {cache: "no-cache", headers: tokens}).then(function(response) {
+    status_fetch = false;
     if(response.ok) {
       response.text().then(function (txt) {func(txt, arg)}, func, arg);
     } else {
@@ -120,7 +124,8 @@ function call_fetch(url, func, arg) {
     }
   }), func, arg)
   .catch(function(error) {
-    console.log('There has been a problem fetching ' + url + ': ', error.message);
+    status_fetch = false;
+    console.log(`There has been a problem fetching ${url}: ${error.message}`);
   });
 }
 
@@ -237,12 +242,12 @@ function init_swipes() {
 function record_swipe_start(event) {
   var touchobj = event.changedTouches[0];
   swipe_start = {"x": touchobj.clientX, "y": touchobj.clientY};
-  console.log("Touch start: " + touchobj.clientX + ", " + touchobj.clientY);
+  console.log(`Touch start: ${touchobj.clientX}, ${touchobj.clientY}`);
 }
 
 function action_swipe_end(event) {
   var touchobj = event.changedTouches[0];
-  console.log("Touch end:" + touchobj.clientX + ", " + touchobj.clientY);
+  console.log(`Touch end: ${touchobj.clientX}, ${touchobj.clientY}`);
   var x_diff = touchobj.clientX - swipe_start.x;
   var y_diff = touchobj.clientY - swipe_start.y;
   if ((Math.abs(x_diff) < 50) && Math.abs(y_diff) < 50) {
@@ -283,14 +288,14 @@ function add_station(args) {
       new_img.index = args.index;
       new_img.onclick = select_station;
       new_img.setAttribute("class", "radio-station-img");
-      new_img.src = "https://ukradiolive.com/public/uploads/radio_img/" + args.station.url + "/play_250_250." + args.station.logo_type;
+      new_img.src = `https://ukradiolive.com/public/uploads/radio_img/${args.station.url}/play_250_250.${args.station.logo_type}`;
       stations_div.appendChild(new_img);
     } else {
       throw new Error('Network response was not "ok".');
     }
   }), args)
   .catch(function(error) {
-    console.log('There has been a problem fetching ' + args.station.file + ': ', error.message);
+    console.log(`There has been a problem fetching ${args.station.file}: ${error.message}`);
   });
 }
 
@@ -414,7 +419,7 @@ function display_tabs(tracks) {
       [p, playerState] = return_player_and_state(tracks[i]);
       tab_data[i] = p;
       playerTitle = player.title;           // eg Chrome or Galaxy A5(2017)
-      tab.innerHTML = playerState + " on " + playerTitle;
+      tab.innerHTML = `${playerState} on ${playerTitle}`;
       tab.onclick = change_active_player;
       if (p == activePlayer)
         tab.setAttribute("class", "active-tab tabs");
@@ -459,9 +464,9 @@ function addImage(cl, url) {
         img.setAttribute("src", URL.createObjectURL(blob));
       });
     } else
-      console.log('There has been a problem with fetching ' + url);
+      console.log(`There has been a problem with fetching ${url}`);
   }).catch(function(error) {
-    console.log('There has been a problem with fetching ' + url);
+    console.log(`There has been a problem with fetching ${url}`);
   });
 }
 
@@ -477,7 +482,7 @@ function update_image(event) {
 
 // if there was a problem loading the image, substitute a local image
 function image_error() {
-  console.log("image error " + event.target.src);
+  console.log(`image error ${event.target.src}`);
   event.target.onerror = null;
   event.target.src = "images/no_image.png";
 }
@@ -609,7 +614,7 @@ function process_status(result) {
     status = JSON.parse(result);
   } 
   catch (err) {
-    console.log("---- Error parsing PWS status " + result);
+    console.log(`---- Error parsing PWS status ${result}`);
   }
   var tracks = [];
   if (status.MediaContainer.Metadata !== undefined) 
@@ -734,17 +739,13 @@ function manage_ui() {
 // get the status of the PMS
 function get_plex_status() {
   manage_ui();
-  if (status_fetch)
-    return;
-  status_fetch = true;
   call_fetch("/status/sessions", process_status);
-  status_fetch = false;
 }
 
 /*---------------------------------------------------------------------------------*/
 
 function photo_image_error(event) {
-  console.log("Display photo error " + event.target.src);
+  console.log(`Display photo error ${event.target.src}`);
 }
 
 // start playing the video once it has reached the state canplay
@@ -759,7 +760,7 @@ function play_video(event) {
         console.log("playing video " + video.getAttribute("src"));
         hide(loading);
       }).catch(function(error) {
-        console.log('There has been a problem with starting playback of the video: ' + error.message);
+        console.log(`There has been a problem with starting playback of the video: ${error.message}`);
         clearTimeout(photo_timer);
         display_photo();
       });
@@ -771,7 +772,7 @@ function play_video(event) {
 function video_error(event) {
   var video = event.target;
   video.onerror = null;
-  console.log("Error playing video from " + video.getAttribute("src") + ": " + event.type);
+  console.log(`Error playing video from ${video.getAttribute("src")}: ${event.type}`);
   switch (video.error.code) {
     case video.error.MEDIA_ERR_ABORTED:
       console.log('You aborted the video playback.');
@@ -800,14 +801,14 @@ function display_photo() {
 
 function receive_message(event) {
   var message = event.data;
-  console.log("Message received from worker: " + message.type);
+  console.log(`Message received from worker: ${message.type}`);
   switch (message.type) {
     case "ready":
       worker_ready = true;
       break;
     case "discovery-complete":
       worker_discovery_complete = true;
-      console.log("Number of discovered photos = " + message.num_photos);
+      console.log(`Number of discovered photos = ${message.num_photos}`);
       break;
     case "photo":
       if (worker_ready && worker_discovery_complete)                                                 // message received too early if both not set
@@ -842,7 +843,7 @@ function receive_photo(photo) {
     photo_timer = setTimeout(display_photo, 10000);
     return;
   }
-  console.log("Displaying photo/video " + photo.url + ", width:height = " + photo.width + ":" + photo.height);
+  console.log(`Displaying photo/video ${photo.url}, width:height = ${photo.width}:${photo.height}`);
   switch (photo.type) {
     case "photo":           // use the PMS transcoder to scale it to the right size and rotate it if necesary at the same time
       var url = plexUrl + "/photo/:/transcode?width=480&height=320&minSize=1&session=plexaudio&url=" + encodeURIComponent(photo.url) + "&" + plexParams;
@@ -859,7 +860,7 @@ function receive_photo(photo) {
         start = Math.floor(Math.random() * (duration - 60000)) / 1000;   // pick a point to start somewhere in the video
         duration = 60000;
       }
-      var url = plexUrl + photo.part_key + "?session=plexvideo&" + plexParams + "#t=" + start + "," + (start+duration);
+      var url = `${plexUrl}${photo.part_key}?session=plexvideo&${plexParams}#t=${start},${(start+duration)}`;
       video.oncanplay = play_video;
       video.onerror = video_error;
       video.setAttribute("src", url);
@@ -867,7 +868,7 @@ function receive_photo(photo) {
       photo_timer = setTimeout(display_photo, duration);
       break;
     default:
-      console.log("Hmm, shouldn't get here. photo.type = " + photo.type);
+      console.log(`Hmm, shouldn't get here. photo.type = ${photo.type}`);
       photo_timer = setTimeout(display_photo, 1000);
   }
 }
