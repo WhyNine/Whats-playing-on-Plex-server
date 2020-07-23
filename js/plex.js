@@ -271,6 +271,7 @@ function show_radio() {
 function hide_radio() {
   screen = "photos";
   remove_playing_station();
+  display_photo();
   manage_ui();
 }
 
@@ -820,6 +821,8 @@ function receive_message(event) {
 function receive_photo(photo) {
   var loading = document.getElementById("loading-video-p");
   hide(loading);
+  if (screen == "radio")
+    return;
   if (screen != "photos") {                                  // if music or radio is playing/active, don't bother updating the photo
     photo_timer = setTimeout(display_photo, 2000);
     return;
