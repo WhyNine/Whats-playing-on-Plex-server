@@ -221,11 +221,11 @@ function init_swipes() {
     case "photos":
       swipe_functions.left = function() {
         clearTimeout(photo_timer);
-        display_photo()
+        request_photo()
       };
       swipe_functions.right = function() {
         clearTimeout(photo_timer);
-        display_photo()
+        request_photo()
       };
       swipe_functions.up = function() {show_radio()};
       swipe_functions.down = undefined;
@@ -276,7 +276,7 @@ function show_radio() {
 function hide_radio() {
   screen = "photos";
   remove_playing_station();
-  display_photo();
+  request_photo();
   manage_ui();
 }
 
@@ -490,19 +490,16 @@ function image_error() {
 function display_track(track) {
   var trackTitle = track.title;
   document.getElementById("track").innerHTML = trackTitle;
-//console.log("Track: " + trackTitle);
   var artist = track.grandparentTitle;
   document.getElementById("artist").innerHTML = artist;
-//console.log("Artist: " + artist);
   var albumTitle = track.parentTitle;
   albumTitle = albumTitle.replace(/(.*?)\[.*?\](.*)/, '$1$2');
   document.getElementById("album").innerHTML = albumTitle;
-//console.log("Album: " + albumTitle);
   var anim_dur = longest_string([trackTitle, artist, albumTitle])/15;
   anim_dur = (anim_dur < 7) ? 7 : anim_dur;
   document.getElementById("album").style.animationDuration = document.getElementById("track").style.animationDuration = document.getElementById("artist").style.animationDuration = anim_dur.toString() + "s"; 
   var albumArtUrl = track.parentThumb;
-  // check if there is album art, else display something anyway
+  // check if there is album art, else display something in its place
   if (albumArtUrl !== null){
     albumArtUrl = plexUrl + albumArtUrl;
     addImage("album-art", albumArtUrl);
@@ -762,7 +759,7 @@ function play_video(event) {
       }).catch(function(error) {
         console.log(`There has been a problem with starting playback of the video: ${error.message}`);
         clearTimeout(photo_timer);
-        display_photo();
+        request_photo();
       });
       clearInterval(timer);
     }       
@@ -791,11 +788,11 @@ function video_error(event) {
       break;
   }
   clearTimeout(photo_timer);
-  photo_timer = setTimeout(display_photo, 1000);
+  photo_timer = setTimeout(request_photo, 1000);
 }
 
 // request photo from worker
-function display_photo() {
+function request_photo() {
   worker.postMessage({"type": "photo-request"});
 }
 
@@ -812,20 +809,20 @@ function receive_message(event) {
       break;
     case "photo":
       if (worker_ready && worker_discovery_complete)                                                 // message received too early if both not set
-        receive_photo(message.data);
+        display_photo(message.data);
       break;
     default:
   }
 }
 
 // if no music playing, display a photo/video
-function receive_photo(photo) {
+function display_photo(photo) {
   var loading = document.getElementById("loading-video-p");
   hide(loading);
   if (screen == "radio")
     return;
   if (screen != "photos") {                                  // if music or radio is playing/active, don't bother updating the photo
-    photo_timer = setTimeout(display_photo, 2000);
+    photo_timer = setTimeout(request_photo, 2000);
     return;
   }
   manage_ui();
@@ -840,7 +837,7 @@ function receive_photo(photo) {
     console.log("Hmm, no photos found ... ");
     image.setAttribute("src", "images/no-photos.png");
     image.setAttribute("visibility", "visible");
-    photo_timer = setTimeout(display_photo, 10000);
+    photo_timer = setTimeout(request_photo, 10000);
     return;
   }
   console.log(`Displaying photo/video ${photo.url}, width:height = ${photo.width}:${photo.height}`);
@@ -850,7 +847,7 @@ function receive_photo(photo) {
       image.onerror = photo_image_error;
       image.setAttribute("src", url);
       image.setAttribute("visibility", "visible");
-      photo_timer = setTimeout(display_photo, 20000);
+      photo_timer = setTimeout(request_photo, 20000);
       break;
     case "video":
       show(loading);
@@ -865,11 +862,11 @@ function receive_photo(photo) {
       video.onerror = video_error;
       video.setAttribute("src", url);
       video.setAttribute("visibility", "visible");
-      photo_timer = setTimeout(display_photo, duration);
+      photo_timer = setTimeout(request_photo, duration);
       break;
     default:
       console.log(`Hmm, shouldn't get here. photo.type = ${photo.type}`);
-      photo_timer = setTimeout(display_photo, 1000);
+      photo_timer = setTimeout(request_photo, 1000);
   }
 }
 
@@ -890,6 +887,6 @@ async function start_monitor() {
     await __delay__(5000);
   screen = "photos";
   setInterval(get_plex_status, 2000);             // start monitoring for playing audio
-  display_photo();                                // go display photo slideshow (if no audio playing)
+  request_photo();                                // go display photo slideshow (if no audio playing)
   init_swipes();
 }
