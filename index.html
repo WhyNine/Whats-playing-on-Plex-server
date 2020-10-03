@@ -13,12 +13,12 @@
 
   <div class="grid-container">
     <div class="grid-title" id="page-title">
-      <img src="images/plex-icon.png" class="image-title" id="img1" />
-      <img src="images/plex-name.png" class="image-title" id="img2" />
+      <img src="images/plex-icon.png" class="image-title" id="img1" draggable="false" />
+      <img src="images/plex-name.png" class="image-title" id="img2" draggable="false" />
       <p class="title-text" id="title-text">for</p>
       <span class="image-title-r" id="img3">
-        <img src="images/raspberry-logo.png" class="image-title" />
-        <img src="images/plex-icon.png" class="image-title" />
+        <img src="images/raspberry-logo.png" class="image-title" draggable="false" />
+        <img src="images/plex-icon.png" class="image-title" draggable="false" />
       </span>
     </div>
     <div class="grid-player" id="playing"></div>
@@ -68,15 +68,15 @@
 
   <!-- Photo/video -->
   <div class="photo-div" id="photos">
-    <img id="photo-img" />
-    <video id="video-img" muted autoplay></video>
+    <img id="photo-img" draggable="false" />
+    <video id="video-img" muted autoplay draggable="false" ></video>
     <p id="loading-video-p">Loading video</p>
   </div>
 
   <!-- Radio stations -->
   <div id="stations" class="hidden">
-    <div id="radio-stations" class="radio-station-div"></div>
-    <div id="radio-playing" class="radio-playing-div"></div>
+    <div id="radio-stations" class="radio-station-div" draggable="false"></div>
+    <div id="radio-playing" class="radio-playing-div" draggable="false"></div>
   </div>
 
   <!-- Please Wait text, only used at start up -->

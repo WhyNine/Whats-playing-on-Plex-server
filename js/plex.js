@@ -259,11 +259,10 @@ function record_swipe_start(event) {
   if (event.changedTouches) {
     var touchobj = event.changedTouches[0];
     swipe_start = {"x": touchobj.clientX, "y": touchobj.clientY};
-    log(`Touch start: ${touchobj.clientX}, ${touchobj.clientY}`);
   } else {
-    swipe_start = {"x": event.offsetX, "y": event.offsetY};
-    log(`Touch start: ${event.offsetX}, ${event.offsetY}`);
+    swipe_start = {"x": event.screenX, "y": event.screenY};
   }
+  log(`Touch start: ${swipe_start.x}, ${swipe_start.y}`);
 }
 
 function action_swipe_end(event) {
@@ -273,8 +272,8 @@ function action_swipe_end(event) {
     x = touchobj.clientX;
     y = touchobj.clientY;
   } else {
-    x = event.offsetX;
-    y = event.offsetY;
+    x = event.screenX;
+    y = event.screenY;
   }
   log(`Touch end: ${x}, ${y}`);
   var x_diff = x - swipe_start.x;
@@ -488,6 +487,7 @@ function addImage(cl, url) {
         var img = document.createElement("img");
         img.onerror = function(event) {image_error(event);};
         img.cl = cl;
+        img.setAttribute("draggable", "false");
         img.onload = update_image;
         img.setAttribute("src", URL.createObjectURL(blob));
       });
@@ -509,7 +509,7 @@ function update_image(event) {
 }
 
 // if there was a problem loading the image, substitute a local image
-function image_error() {
+function image_error(event) {
   log(`image error ${event.target.src}`, "error");
   event.target.onerror = null;
   event.target.src = "images/no_image.png";
@@ -533,6 +533,7 @@ function display_track(track) {
     addImage("album-art", albumArtUrl);
   } else {
     var img = document.createElement("img");
+    img.setAttribute("draggable", "false");
     img.setAttribute("src", "images/no_image.png");
     remove_child(document.getElementById("album-art"));
     document.getElementById("album-art").appendChild(img);
@@ -540,6 +541,7 @@ function display_track(track) {
   // check if the artist is Soundtrack (usually found on albums from movies), if so display something sensible
   if (artist === "Soundtrack") {
     var img = document.createElement("img");
+    img.setAttribute("draggable", "false");
     img.setAttribute("src", "images/soundtrack.jpg");
     remove_child(document.getElementById("artist-art"));
     document.getElementById("artist-art").appendChild(img);
@@ -551,6 +553,7 @@ function display_track(track) {
     } else {
       var img = document.createElement("img");
       img.setAttribute("src", "images/no_image.png");
+      img.setAttribute("draggable", "false");
       remove_child(document.getElementById("artist-art"));
       document.getElementById("artist-art").appendChild(img);
     }
@@ -781,6 +784,8 @@ function get_plex_status() {
 
 function photo_image_error(event) {
   log(`Display photo error ${event.target.src}`, "error");
+  clearTimeout(photo_timer);
+  photo_timer = setTimeout(request_photo, 100);
 }
 
 // start playing the video once it has reached the state canplay

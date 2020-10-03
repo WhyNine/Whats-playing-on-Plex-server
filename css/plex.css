@@ -77,6 +77,7 @@ h1 {
   font-style:italic;
   white-space:nowrap;
   overflow:hidden;
+  user-select: none;
 }
 
 span.scroll {
@@ -134,6 +135,7 @@ span.scroll {
   display: grid;
   grid-gap: 0px 0px;
   grid-template-columns:200px 10px auto 100px;
+  user-select: none;
 }
 
 .grid-title {
@@ -229,6 +231,7 @@ span.scroll {
 .grid-album-art img {
   height:198px;
   width:198px;
+  user-select: none;
 }
 
 .grid-track {
@@ -279,6 +282,7 @@ span.scroll {
 .grid-artist-art img {
   height:98px;
   width:98px;
+  user-select: none;
 }
 
 .progress-bar-div {
@@ -399,6 +403,7 @@ span.scroll {
   transform: translateX(-50%);
   height:320px;
   max-width:480px;
+  user-select: none;
 }
 
 .photo-div video {
@@ -417,6 +422,7 @@ span.scroll {
   left: 100px;
   position: absolute;
   font-size: 40px;
+  user-select: none;
 }
 
 .visible {
@@ -435,6 +441,7 @@ span.scroll {
   width: 480px;
   height: 120px;
   background-color: gray;
+  user-select: none;
 }
 
 .radio-station-div {
@@ -445,6 +452,7 @@ span.scroll {
   height: 200px;
   overflow: hidden;
   background-color: gray;
+  user-select: none;
 }
 
 .radio-playing-iframe {
@@ -458,4 +466,5 @@ span.scroll {
   padding: 3px;
   width: 90px;
   height: 90px;
+  user-select: none;
 }

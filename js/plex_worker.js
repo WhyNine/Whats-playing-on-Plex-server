@@ -3,14 +3,24 @@
 'use strict';
 
 var plexParams = "";
-var photo_list = [];                           // array with all the photos on Plex
+var photo_list = [];                          // array with all the photos on Plex
+var idb;                                      // handle for the IndexedDb
+var request;
+const db_version = 1;
 var num_photos;
 var fetch_flag = false;
 var proc_count = 0;
 
 /*---------------------------------------------------------------------------------*/
-function print_proc_count() {
-  console.log("proc_count = " + proc_count);
+function log(str, level) {
+  switch (level) {
+    case "error":
+      console.log(str);
+      break;
+    default:
+      if (debug)
+        console.log(str);
+  }
 }
 
 function __delay__(timer) {
@@ -41,13 +51,15 @@ async function call_fetch(url, func, arg) {
   .catch(function(error) {
     fetch_flag = false;
     proc_count--;
-    console.log('Worker: There has been a problem fetching ' + url + ': ', error.message);
+    log('Worker: There has been a problem fetching ' + url + ': ', error.message, "error");
   });
 }
 
     
 /*---------------------------------------------------------------------------------*/
 function add_photo_to_list(current_array, key, w, h, updated, added) {
+  if (ignore_photos)
+    return;
   var item = {"updated": updated, "added": added, "width": w, "height": h, "url": key, "type": "photo"};
   current_array.push(item);
 }
@@ -75,11 +87,13 @@ function check_video_playability(txt, item) {
     }
   }
   else
-    console.log("video not playable\n");
+    log("video not playable\n");
   proc_count--;
 }
 
 function check_video_playable(current_array, key, duration, updated, added) {
+  if (ignore_videos)
+    return;
   var url = "/video/:/transcode/universal/decision?hasMDE=1&mediaIndex=0&partIndex=0&protocol=http&path=" + key;
   var item = {"updated": updated, "added": added, "duration": duration, "url": key, "type": "video", "array": current_array};
   proc_count++;
@@ -97,7 +111,7 @@ function process_dir(txt, current_array) {
   try {
     result = JSON.parse(txt);
   } catch {
-    console.log("----- Worker: error parsing JSON " + txt);
+    log("----- Worker: error parsing JSON " + txt, "error");
   }
   var contents = result.MediaContainer.Metadata;
   if (contents !== undefined) {
@@ -131,11 +145,11 @@ function process_dir(txt, current_array) {
             check_video_playable(current_array, key, duration, updated, added);
             break;
           default:
-            console.log("------ Worker found unknown content type " + contents[i].type);
+            log("------ Worker found unknown content type " + contents[i].type, "error");
         }
     } 
   } else {
-    console.log("----- Worker: no Metadata found in " + txt);
+    log("----- Worker: no Metadata found in " + txt, "error");
   }
   proc_count--;
 }
@@ -175,7 +189,7 @@ function update_dir(txt, current_array) {
   try {
     result = JSON.parse(txt);
   } catch {
-    console.log("----- Worker: error parsing JSON " + txt);
+    log("----- Worker: error parsing JSON " + txt, "error");
   }
   var contents = result.MediaContainer.Metadata;
   var previous_dirs = [];
@@ -201,7 +215,7 @@ function update_dir(txt, current_array) {
       }
     }
   } else {
-    console.log("----- Worker: no Metadata found in " + txt);
+    log("----- Worker: no Metadata found in " + txt, "error");
   }
   previous_dirs.forEach(function(item) {
       this.splice(item, 1);                                     // delete all of the other folders not matched above
@@ -273,7 +287,7 @@ function update_photo_section_id(txt) {
   try {
     result = JSON.parse(txt);
   } catch {
-    console.log("----- Worker: error parsing JSON " + txt);
+    log("----- Worker: error parsing JSON " + txt, "error");
   }
   var dirs = result.MediaContainer.Directory;
   if ((dirs !== undefined) && (dirs[0] !== undefined)) {
@@ -299,26 +313,162 @@ function update_photo_section_id(txt) {
         break;
       }
   } else {
-    console.log("----- Worker: no Directory found in " + txt);
+    log("----- Worker: no Directory found in " + txt, "error");
   }
   proc_count--;
 }
 
 async function update_photo_list() {
   if (proc_count == 0) {
-    console.log("Worker: updating the photo list ****************************");
+    log("Worker: updating the photo list ****************************");
     proc_count++;
     call_fetch("/library/sections", update_photo_section_id);
     await __delay__(1000);
     while (proc_count > 0)
       await __delay__(1000);
-    console.log("Worker: photo list update complete ****************************");
+    log("Worker: photo list update complete ****************************");
+    write_database();
   }
+}
+
+function databaseExists(dbname, callback) {
+  var req = indexedDB.open(dbname);
+  var existed = true;
+  req.onsuccess = function () {
+      req.result.close();
+      if (!existed)
+          indexedDB.deleteDatabase(dbname);
+      callback(existed);
+  }
+  req.onupgradeneeded = function () {
+      existed = false;
+  }
+}
+
+function open_database(dbName, dbVersion, readwrite, successCallback, errorCallback) {
+  var request;
+  switch (readwrite){
+    case "write":
+      indexedDB.deleteDatabase(dbName);
+      request = indexedDB.open(dbName, dbVersion);
+      request.onupgradeneeded = function (event) {
+        var db = event.target['result'];
+        var objStore = db.createObjectStore("data");
+        successCallback(db, objStore);
+      };
+      request.onerror = function (event) {
+        errorCallback(event.target['result']);
+      };
+      break;
+    case "read":
+      databaseExists(dbName, function (exists) {
+        if (exists) {
+          request = indexedDB.open(dbName, dbVersion);
+          request.onsuccess = function (event) {
+            var objStore;
+            var db = event.target['result'];
+            if (db.objectStoreNames.contains("data")) {
+              objStore = db.transaction("data", "readwrite").objectStore("data");
+              log("Worker: opening existing object store 'data'");
+            } else {
+              objStore = db.createObjectStore("data");
+              log("Worker: creating new object store 'data'");
+            }
+            successCallback(db, objStore);
+          };
+          request.onerror = function (event) {
+            errorCallback();
+          };
+        } else {
+          errorCallback();
+        }
+      });
+      break;
+    default:
+      errorCallback();
+      break;
+  }
+}
+
+function get_db_data(db, tag, successCallback, errorCallback) {
+  var trans = db.transaction("data", IDBTransaction.READ_ONLY);
+  var store = trans.objectStore("data");
+  var req = store.get(tag);
+  req.onsuccess = function (e) {
+    successCallback(e.target['result']);
+  };
+  req.onerror = function (e) {
+    errorCallback(e.target['result']);
+  };
+}
+
+function read_data_from_db(db) {
+  get_db_data(db, "date", function (result) {
+    if (result) {
+      log("Worker: date from stored database is " + Date(result));
+      if (Date.now() - result > 3600000) {
+        log("Worker: data in database too old");
+        call_fetch("/library/sections", update_photo_section_id);
+      } else {
+        get_db_data(db, "list", function (result) {
+          if (result) {
+            photo_list = result;
+            log("Worker: finished reading photos from database");
+            proc_count = 0;
+          } else {
+            log("Worker: empty photo list read from database");
+            call_fetch("/library/sections", update_photo_section_id);
+          }
+        }, function (result) {
+          log(`Worker: error reading photo list from database`, "error");
+          call_fetch("/library/sections", update_photo_section_id);
+        });
+      }
+    } else {
+      log("Worker: unable to read date from database", "error");
+      call_fetch("/library/sections", update_photo_section_id);
+    }
+  }, function (result) {
+    log("Worker: unable to read date from database (did it exist?)");
+    call_fetch("/library/sections", update_photo_section_id);
+  });
+}
+
+function read_database() {
+  open_database("photos", db_version, "read", function (db, objstore) {
+    setTimeout(read_data_from_db, 500, db);                                     // allow for the database upgrade event handler, if called, to finish
+  }, function (db, objstore) {
+    log("Worker: error opening database", "error");
+    call_fetch("/library/sections", update_photo_section_id);
+  });
+}
+
+function put_in_db(objstore, data, tag, successCallback) {
+  var req = objstore.put(data, tag);
+  req.onsuccess = function () {
+      successCallback();
+  };
+}
+
+function write_database() {
+  open_database("photos", db_version, "write", function (db, objstore) {
+    put_in_db(objstore, photo_list, "list", function () {
+      log("Worker: photo list written to database");});
+    put_in_db(objstore, Date.now(), "date", function () {
+      log("Worker: date written to database");});
+  }, function (db, objstore) {
+    log("Worker: error opening database", "error");
+  });
 }
 
 function discover_photos() {
   proc_count++;
-  call_fetch("/library/sections", update_photo_section_id);
+  if (indexedDB) {
+    read_database();
+  } else {
+    log("Worker: indexedDB not supported");
+    call_fetch("/library/sections", update_photo_section_id);
+  }
 }
 
 // count the number of photos/videos that have been found
@@ -362,17 +512,20 @@ function find_photo(current_array, num) {
 
 // process message received from the web worker
 async function receive(message) {
-  console.log("Worker: received message " + message.data.type);
+  log("Worker: received message " + message.data.type);
   switch(message.data.type) {
     case "params": 
       plexParams = message.data.data.params;
       tokens = message.data.data.tokens;
-      console.log("Worker: starting photo discovery");
+      log("Worker: starting photo discovery");
       discover_photos();
       await __delay__(5000);
       while (proc_count > 0)          // wait until photo discovery complete
         await __delay__(5000);
-      console.log("Worker: discovery complete");
+      log("Worker: discovery complete");
+      if (indexedDB) {
+        write_database();
+      }
       num_photos = 0;
       count_photos(photo_list);
       postMessage({"type": "discovery-complete", "num_photos": num_photos});
@@ -382,22 +535,21 @@ async function receive(message) {
       count_photos(photo_list);
       if (num_photos == 0) {
         postMessage({"type": "photo"});
-        console.log("Worker: no photos found when one requested");
+        log("Worker: no photos found when one requested", "error");
         break;
       }
-      console.log("Worker: number of photos = " + num_photos);
+      log("Worker: number of photos = " + num_photos);
       postMessage({"type": "photo", "data": find_photo(photo_list, Math.floor(Math.random() * num_photos))});
-//      postMessage({"type": "photo", "data": find_photo(photo_list, 1)});
       break;
     default:
-      console.log("Worker: unknown message received");
+      log("Worker: unknown message received", "error");
   }
 }
 
 /*---------------------------------------------------------------------------------*/
 
-console.log("Worker: hello");
 importScripts("custom.js");
+log("Worker: hello");
 onmessage = receive;
 postMessage({"type": "ready"});
 setInterval(update_photo_list, 3600000);        // periodically check for any new photos
