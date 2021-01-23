@@ -383,8 +383,11 @@ function change_active_player(e) {
 function next_player() {
   var tabs = document.getElementsByClassName("tabs");           // find all the player tabs being displayed
   var i = 0;
-  while (tabs[i].getAttribute("class") != "active-tab tabs") 
+  while (tabs[i].getAttribute("class") != "active-tab tabs") {
     i++;
+    if (i == tabs.length)
+      return;
+  }
   if ((i < 2) && (tabs[i+1].getAttribute("class") == "inactive-tab tabs")) {
     activePlayer = tab_data[tabs[i+1].attributes.tab_index.nodeValue];
     log("Changed to next player");
@@ -395,8 +398,11 @@ function next_player() {
 function previous_player() {
   var tabs = document.getElementsByClassName("tabs");           // find all the player tabs being displayed
   var i = 0;
-  while (tabs[i].getAttribute("class") != "active-tab tabs") 
+  while (tabs[i].getAttribute("class") != "active-tab tabs") {
     i++;
+    if (i == tabs.length)
+      return;
+  }
   if ((i > 0) && (tabs[i-1].getAttribute("class") == "inactive-tab tabs")) {
     activePlayer = tab_data[tabs[i-1].attributes.tab_index.nodeValue];
     log("Changed to previous player");
@@ -410,8 +416,11 @@ function skipped_next_track() {
 function skip_next_track() {
   var tabs = document.getElementsByClassName("tabs");           // find all the player tabs being displayed
   var i = 0;
-  while (tabs[i].getAttribute("class") != "active-tab tabs") 
+  while (tabs[i].getAttribute("class") != "active-tab tabs") {
     i++;
+    if (i == tabs.length)
+      return;
+  }
   var player = tab_data[tabs[i].attributes.tab_index.nodeValue];
   var client_session = player.split(":");
   var skip_command = `/player/playback/skipNext?type=music&commandID=${command_id++}&X-Plex-Target-Client-Identifier=${client_session[0]}`;
@@ -425,8 +434,11 @@ function skipped_previous_track() {
 function skip_previous_track() {
   var tabs = document.getElementsByClassName("tabs");           // find all the player tabs being displayed
   var i = 0;
-  while (tabs[i].getAttribute("class") != "active-tab tabs") 
+  while (tabs[i].getAttribute("class") != "active-tab tabs") {
     i++;
+    if (i == tabs.length)
+      return;
+  }
   var player = tab_data[tabs[i].attributes.tab_index.nodeValue];
   var client_session = player.split(":");
   var skip_command = `/player/playback/skipPrevious?type=music&commandID=${command_id++}&X-Plex-Target-Client-Identifier=${client_session[0]}`;
