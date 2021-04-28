@@ -893,17 +893,37 @@ function display_photo(photo) {
     video.setAttribute("visibility", "hidden");
     video.setAttribute("src", "");
     video.volume = 0;
+    var hour = new Date().getHours();
+    var night = false;
+    if ((hour < 9) || (hour > 21)) {
+        night = true;
+        log("Setting night time mode");
+    }
     if (photo == undefined) {
         log("Hmm, no photos found ... ", "error");
-        image.setAttribute("src", "images/no-photos.png");
+        if (night) {
+            image.setAttribute("src", "images/sleeping-cat-icegif-2.gif");
+        } else {
+            image.setAttribute("src", "images/no-photos.png");
+        }
         image.setAttribute("visibility", "visible");
         photo_timer = setTimeout(request_photo, 10000);
         return;
     }
+    if (night) {
+        photo.type = "photo";
+        photo.width = 480;
+        photo.height = 320;
+    }
     log(`Displaying photo/video ${photo.url}, width:height = ${photo.width}:${photo.height}`);
     switch (photo.type) {
         case "photo": // use the PMS transcoder to scale it to the right size and rotate it if necesary at the same time
-            var url = plexUrl + "/photo/:/transcode?width=480&height=320&minSize=1&session=plexaudio&url=" + encodeURIComponent(photo.url) + "&" + plexParams;
+            var url;
+            if (night) {
+                url = "images/sleeping-cat-icegif-2.gif";
+            } else {
+                url = plexUrl + "/photo/:/transcode?width=480&height=320&minSize=1&session=plexaudio&url=" + encodeURIComponent(photo.url) + "&" + plexParams;
+            }
             image.onerror = photo_image_error;
             image.setAttribute("src", url);
             image.setAttribute("visibility", "visible");
