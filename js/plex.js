@@ -67,17 +67,25 @@ async function construct_params() {
                 cache: "no-cache",
                 headers: new_tokens
             });
-        if (!fetch_response.ok)
-            throw new Error("not ok");
+        if (!fetch_response.ok) {
+            log("Token retrieval response not OK");
+            document.getElementById("please-wait-p").innerText = "Auhentication error";
+            return 0;
+        }
         var text = await fetch_response.text();
         try {
             params = JSON.parse(text);
         } catch (err) {
             log("---- Error parsing authorisation response " + text, "error");
+            document.getElementById("please-wait-p").innerText = "Auhentication error";
+            return 0;
         }
         var authtoken = params.user.authToken;
-        if ((authtoken === undefined) || (authtoken.length == 0)) // if can't get a token, bomb out (this will stop the program going any further)
-            throw new Error("malformed authentication token");
+        if ((authtoken === undefined) || (authtoken.length == 0)) {
+            log("Malformed authentication token: ".authtoken);
+            document.getElementById("please-wait-p").innerText = "Auhentication error";
+            return 0;
+        }
         tokens.push(["X-Plex-Token", authtoken]);
         tokens.forEach(function(param) {
             if (plexParams.length > 0)
@@ -91,9 +99,11 @@ async function construct_params() {
             worker.postMessage({ "type": "params", "data": { "params": plexParams, "tokens": tokens, "codecs": codecs, "max_video_resolution": max_video_resolution } });
             log("Sent params to worker");
         }
+        return 1;
     } catch {
         log('There has been a problem obtaining the authentication token', "error");
         document.getElementById("please-wait-p").innerText = "Auhentication error";
+        return 0;
     }
 }
 
@@ -958,7 +968,12 @@ async function start_monitor() {
     set_wait_div_message("Please wait: retrieving credentials");
     manage_ui();
     start_worker();
-    await construct_params();
+    while (1) {
+        if (await construct_params())
+            break;
+        await __delay__(5000);
+        set_wait_div_message("Please wait: retrieving credentials");
+    }
     set_wait_div_message("Please wait: discovering photos/videos");
     clear_track();
     clear_tabs();
