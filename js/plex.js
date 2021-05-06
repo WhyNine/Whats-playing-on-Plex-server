@@ -102,7 +102,7 @@ async function construct_params() {
         return 1;
     } catch {
         log('There has been a problem obtaining the authentication token', "error");
-        document.getElementById("please-wait-p").innerText = "Auhentication error";
+        set_wait_div_message("Authentication error");
         return 0;
     }
 }
