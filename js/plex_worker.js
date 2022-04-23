@@ -541,6 +541,7 @@ async function receive(message) {
             if (num_photos == 0) {
                 postMessage({ "type": "photo" });
                 log("Worker: no photos found when one requested", "error");
+                update_photo_list(); // if no photos when one requested, go looking again
                 break;
             }
             log("Worker: number of photos = " + num_photos);
